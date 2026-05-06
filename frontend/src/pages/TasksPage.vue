@@ -1,23 +1,90 @@
 <script setup lang="ts">
-import { computed } from "vue"
-import { NButton, NProgress, NSpace, NTimeline, NTimelineItem } from "naive-ui"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { NAlert, NButton, NEmpty, NProgress, NSpace, NSpin, NTimeline, NTimelineItem } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { tasks } from "../mock-data"
+import { taskApi } from "../api/client"
+import { toErrorMessage } from "../utils/api-state"
 import { taskStatusLabel } from "../utils/status"
+import type { IngestTask } from "../types"
 
-const failedTasks = computed(() => tasks.filter((task) => task.status === "Failed").length)
+const loading = ref(true)
+const actionLoading = ref("")
+const errorMessage = ref("")
+const tasks = ref<IngestTask[]>([])
+const failedTasks = computed(() => tasks.value.filter((task) => task.status === "Failed").length)
+let closeTaskStream: (() => void) | undefined
+
+async function loadTasks() {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    const page = await taskApi.page()
+    tasks.value = page.records
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+function mergeTask(nextTask: IngestTask) {
+  const index = tasks.value.findIndex((task) => task.taskId === nextTask.taskId)
+  if (index >= 0) tasks.value[index] = nextTask
+  else tasks.value.unshift(nextTask)
+}
+
+async function retryTask(taskId: string) {
+  actionLoading.value = taskId
+  errorMessage.value = ""
+  try {
+    await taskApi.retry(taskId)
+    await loadTasks()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    actionLoading.value = ""
+  }
+}
+
+async function cancelTask(taskId: string) {
+  actionLoading.value = taskId
+  errorMessage.value = ""
+  try {
+    await taskApi.cancel(taskId)
+    await loadTasks()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    actionLoading.value = ""
+  }
+}
+
+onMounted(() => {
+  void loadTasks()
+  closeTaskStream = taskApi.stream(mergeTask, () => {
+    if (!errorMessage.value) errorMessage.value = "任务进度流暂不可用"
+  })
+})
+
+onBeforeUnmount(() => {
+  closeTaskStream?.()
+})
 </script>
 
 <template>
   <section class="page-grid tasks-grid">
+    <NAlert v-if="errorMessage" type="error" :bordered="false">
+      {{ errorMessage }}
+    </NAlert>
+
     <div class="section-panel">
       <div class="section-toolbar">
         <div>
           <h2>摄入队列</h2>
           <p>任务默认按 Vault 串行执行，避免多个任务同时写入。</p>
         </div>
-        <NButton secondary :disabled="failedTasks === 0">
+        <NButton secondary :disabled="failedTasks === 0" :loading="loading" @click="loadTasks">
           <template #icon>
             <AppIcon name="refresh" />
           </template>
@@ -25,7 +92,9 @@ const failedTasks = computed(() => tasks.filter((task) => task.status === "Faile
         </NButton>
       </div>
 
-      <div class="task-list">
+      <NSpin v-if="loading" />
+      <NEmpty v-else-if="tasks.length === 0" description="暂无摄入任务" />
+      <div v-else class="task-list">
         <div v-for="task in tasks" :key="task.taskId" class="task-row">
           <div class="task-row__header">
             <div>
@@ -49,13 +118,25 @@ const failedTasks = computed(() => tasks.filter((task) => task.status === "Faile
           </div>
           <p v-if="task.errorMessage" class="error-text">{{ task.errorMessage }}</p>
           <NSpace :size="8" class="task-actions">
-            <NButton size="small" tertiary>
+            <NButton
+              size="small"
+              tertiary
+              :loading="actionLoading === task.taskId"
+              :disabled="task.status === 'Done' || task.status === 'Cancelled'"
+              @click="cancelTask(task.taskId)"
+            >
               <template #icon>
                 <AppIcon name="x" />
               </template>
               取消
             </NButton>
-            <NButton size="small" secondary>
+            <NButton
+              size="small"
+              secondary
+              :loading="actionLoading === task.taskId"
+              :disabled="task.status !== 'Failed'"
+              @click="retryTask(task.taskId)"
+            >
               <template #icon>
                 <AppIcon name="refresh" />
               </template>
