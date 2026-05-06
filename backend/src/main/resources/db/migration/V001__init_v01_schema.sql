@@ -1,0 +1,102 @@
+CREATE TABLE vault_project (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  name VARCHAR(128) NOT NULL COMMENT 'Vault 名称',
+  path VARCHAR(1024) NOT NULL COMMENT 'Vault 绝对路径',
+  purpose VARCHAR(1024) DEFAULT NULL COMMENT '知识库目标摘要',
+  status VARCHAR(32) NOT NULL DEFAULT 'READY' COMMENT '状态',
+  last_indexed_at DATETIME DEFAULT NULL COMMENT '最近索引时间',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_vault_path (path(255))
+) COMMENT='Vault 项目表';
+
+CREATE TABLE source_document (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  vault_id BIGINT NOT NULL COMMENT 'Vault ID',
+  type VARCHAR(32) NOT NULL COMMENT '资料类型',
+  title VARCHAR(256) NOT NULL COMMENT '资料标题',
+  original_path VARCHAR(1024) NOT NULL COMMENT '原始文件相对路径',
+  original_hash VARCHAR(64) DEFAULT NULL COMMENT '原始文件哈希',
+  extracted_text_path VARCHAR(1024) DEFAULT NULL COMMENT '解析文本相对路径',
+  source_url VARCHAR(2048) DEFAULT NULL COMMENT '网页原始 URL',
+  status VARCHAR(32) NOT NULL COMMENT '状态',
+  error_message VARCHAR(1024) DEFAULT NULL COMMENT '错误信息',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_vault_original_path (vault_id, original_path(255)),
+  KEY idx_vault_status (vault_id, status),
+  KEY idx_vault_type (vault_id, type)
+) COMMENT='原始资料表';
+
+CREATE TABLE ingest_task (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  task_id VARCHAR(64) NOT NULL COMMENT '业务任务 ID',
+  vault_id BIGINT NOT NULL COMMENT 'Vault ID',
+  source_id BIGINT NOT NULL COMMENT '资料 ID',
+  status VARCHAR(32) NOT NULL COMMENT '任务状态',
+  stage VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '执行阶段',
+  progress INT NOT NULL DEFAULT 0 COMMENT '进度 0-100',
+  retry_count INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
+  error_message VARCHAR(1024) DEFAULT NULL COMMENT '错误信息',
+  written_files JSON DEFAULT NULL COMMENT '已写入文件',
+  started_at DATETIME DEFAULT NULL COMMENT '开始时间',
+  heartbeat_at DATETIME DEFAULT NULL COMMENT 'Worker 心跳时间',
+  finished_at DATETIME DEFAULT NULL COMMENT '结束时间',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_task_id (task_id),
+  KEY idx_vault_status (vault_id, status),
+  KEY idx_source_id (source_id),
+  KEY idx_heartbeat (status, heartbeat_at)
+) COMMENT='摄入任务表';
+
+CREATE TABLE wiki_page (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  vault_id BIGINT NOT NULL COMMENT 'Vault ID',
+  path VARCHAR(1024) NOT NULL COMMENT 'Wiki 相对路径',
+  title VARCHAR(256) NOT NULL COMMENT '页面标题',
+  type VARCHAR(32) NOT NULL COMMENT '页面类型',
+  tags JSON DEFAULT NULL COMMENT '标签',
+  related JSON DEFAULT NULL COMMENT '关联页面',
+  content_hash VARCHAR(64) DEFAULT NULL COMMENT '内容哈希',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_vault_path (vault_id, path(255)),
+  KEY idx_vault_type (vault_id, type)
+) COMMENT='Wiki 页面索引表';
+
+CREATE TABLE chat_session (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  vault_id BIGINT NOT NULL COMMENT 'Vault ID',
+  title VARCHAR(256) NOT NULL COMMENT '会话标题',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  KEY idx_vault_id (vault_id)
+) COMMENT='对话会话表';
+
+CREATE TABLE chat_message (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  session_id BIGINT NOT NULL COMMENT '会话 ID',
+  role VARCHAR(32) NOT NULL COMMENT '消息角色',
+  content MEDIUMTEXT NOT NULL COMMENT '消息内容',
+  citations JSON DEFAULT NULL COMMENT '引用来源',
+  saved_path VARCHAR(1024) DEFAULT NULL COMMENT '保存到 Vault 的相对路径',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  KEY idx_session_id (session_id)
+) COMMENT='对话消息表';
+
+CREATE TABLE app_setting (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  setting_key VARCHAR(128) NOT NULL COMMENT '配置键',
+  setting_value TEXT DEFAULT NULL COMMENT '配置值',
+  value_type VARCHAR(32) NOT NULL DEFAULT 'STRING' COMMENT '配置值类型',
+  description VARCHAR(512) DEFAULT NULL COMMENT '配置说明',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_setting_key (setting_key)
+) COMMENT='应用配置表';
