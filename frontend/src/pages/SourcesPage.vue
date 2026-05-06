@@ -1,26 +1,37 @@
 <script setup lang="ts">
 import {
+  NAlert,
   NButton,
   NDataTable,
   NDivider,
+  NEmpty,
   NForm,
   NFormItem,
   NInput,
   NInputGroup,
   NSpace,
+  NSpin,
   NUpload,
   NUploadDragger,
   type DataTableColumns,
+  type UploadCustomRequestOptions,
 } from "naive-ui"
-import { h, ref } from "vue"
+import { h, onMounted, ref } from "vue"
 import AppIcon from "../components/AppIcon.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { sources } from "../mock-data"
+import { sourceApi } from "../api/client"
+import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
-import type { IconName, SourceDocument } from "../types"
+import type { IconName, SourceDocument, SourcePreview } from "../types"
 
-const urlInput = ref("https://example.com/research/agent-memory")
-const selectedSource = ref(sources[0])
+const urlInput = ref("")
+const loading = ref(true)
+const actionLoading = ref(false)
+const errorMessage = ref("")
+const actionMessage = ref("")
+const sources = ref<SourceDocument[]>([])
+const selectedSource = ref<SourceDocument>()
+const selectedPreview = ref<SourcePreview>()
 
 const sourceColumns: DataTableColumns<SourceDocument> = [
   {
@@ -70,10 +81,10 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
     title: "操作",
     key: "actions",
     width: 110,
-    render() {
+    render(row) {
       return h(
         NButton,
-        { size: "small", secondary: true },
+        { size: "small", secondary: true, onClick: () => ingestSource(row) },
         {
           icon: () => h(AppIcon, { name: "play" }),
           default: () => "摄入",
@@ -82,17 +93,119 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
     },
   },
 ]
+
+async function loadSources() {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    const page = await sourceApi.page()
+    sources.value = page.records
+    selectedSource.value = page.records[0]
+    if (selectedSource.value) await loadPreview(selectedSource.value)
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadPreview(source: SourceDocument) {
+  selectedSource.value = source
+  selectedPreview.value = undefined
+  try {
+    selectedPreview.value = await sourceApi.preview(source.id)
+  } catch {
+    selectedPreview.value = {
+      sourceId: source.id,
+      title: source.title,
+      extractedTextPath: source.extractedTextPath,
+      content: source.summary,
+    }
+  }
+}
+
+async function importUrl() {
+  if (!urlInput.value) return
+  actionLoading.value = true
+  actionMessage.value = ""
+  errorMessage.value = ""
+  try {
+    await sourceApi.importUrl(urlInput.value)
+    actionMessage.value = "URL 已提交导入"
+    await loadSources()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function uploadSource(options: UploadCustomRequestOptions) {
+  const file = options.file.file
+  if (!file) {
+    options.onError()
+    return
+  }
+
+  try {
+    await sourceApi.upload(file)
+    options.onFinish()
+    await loadSources()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+    options.onError()
+  }
+}
+
+async function ingestSource(source: SourceDocument) {
+  actionLoading.value = true
+  actionMessage.value = ""
+  errorMessage.value = ""
+  try {
+    await sourceApi.ingest(source.id)
+    actionMessage.value = `${source.title} 已加入摄入队列`
+    await loadSources()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function parseSource() {
+  if (!selectedSource.value) return
+  actionLoading.value = true
+  errorMessage.value = ""
+  try {
+    await sourceApi.parse(selectedSource.value.id)
+    await loadPreview(selectedSource.value)
+    actionMessage.value = "解析已触发"
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+onMounted(loadSources)
 </script>
 
 <template>
   <section class="page-grid sources-grid">
+    <NAlert v-if="errorMessage" type="error" :bordered="false">
+      {{ errorMessage }}
+    </NAlert>
+    <NAlert v-else-if="actionMessage" type="success" :bordered="false">
+      {{ actionMessage }}
+    </NAlert>
+
     <div class="import-panel">
       <div class="panel-block">
-        <h2>多模态导入</h2>
-        <p>支持 PDF、Office、Markdown、HTML、网页 URL、图片、音频、视频，统一进入 raw/ 目录。</p>
+        <h2>资料导入</h2>
+        <p>支持 PDF、Office、Markdown、HTML 和网页 URL，统一进入 raw/ 目录。</p>
       </div>
 
-      <NUpload multiple>
+      <NUpload multiple :custom-request="uploadSource" :show-file-list="false">
         <NUploadDragger>
           <div class="upload-dragger">
             <AppIcon name="upload" :size="32" />
@@ -108,7 +221,7 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
         <NFormItem label="网页 URL">
           <NInputGroup>
             <NInput v-model:value="urlInput" placeholder="https://..." />
-            <NButton type="primary">
+            <NButton type="primary" :loading="actionLoading" @click="importUrl">
               <template #icon>
                 <AppIcon name="link" />
               </template>
@@ -125,14 +238,16 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
           <h2>资料列表</h2>
           <p>解析完成后可手动触发 AI 摄入，或加入串行队列。</p>
         </div>
-        <NButton secondary>
+        <NButton secondary :loading="loading" @click="loadSources">
           <template #icon>
-            <AppIcon name="play" />
+            <AppIcon name="refresh" />
           </template>
-          批量摄入
+          刷新
         </NButton>
       </div>
+      <NSpin v-if="loading" />
       <NDataTable
+        v-else
         :columns="sourceColumns"
         :data="sources"
         :bordered="false"
@@ -140,11 +255,11 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
       />
     </div>
 
-    <div class="preview-panel">
+    <div v-if="selectedSource" class="preview-panel">
       <div class="section-toolbar">
         <div>
           <h2>解析预览</h2>
-          <p>{{ selectedSource.extractedTextPath }}</p>
+          <p>{{ selectedPreview?.extractedTextPath || selectedSource.extractedTextPath }}</p>
         </div>
         <NSpace :size="8" align="center">
           <span :class="`modality-chip modality-chip--${selectedSource.modality}`">
@@ -160,19 +275,15 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
         <h3>写入目标</h3>
         <p>{{ selectedSource.targetPage }}</p>
         <h3>解析结果片段</h3>
-        <p>
-          Agent memory systems usually combine short-term conversational state,
-          long-term semantic memory, and episodic traces. A local-first vault keeps
-          the durable layer inspectable and recoverable.
-        </p>
+        <p>{{ selectedPreview?.content || "暂无解析预览" }}</p>
         <NSpace :size="8">
-          <NButton secondary>
+          <NButton secondary :loading="actionLoading" @click="parseSource">
             <template #icon>
               <AppIcon name="file" />
             </template>
-            查看原文
+            重新解析
           </NButton>
-          <NButton type="primary">
+          <NButton type="primary" :loading="actionLoading" @click="ingestSource(selectedSource)">
             <template #icon>
               <AppIcon name="spark" />
             </template>
@@ -180,6 +291,9 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
           </NButton>
         </NSpace>
       </article>
+    </div>
+    <div v-else class="preview-panel">
+      <NEmpty description="暂无资料，先上传文件或导入 URL" />
     </div>
   </section>
 </template>

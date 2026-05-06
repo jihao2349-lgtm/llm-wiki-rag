@@ -1,12 +1,37 @@
 <script setup lang="ts">
-import { NButton, NCard, NDataTable, NProgress, NSpace, NTag, type DataTableColumns } from "naive-ui"
-import { h } from "vue"
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NDataTable,
+  NEmpty,
+  NProgress,
+  NSpace,
+  NSpin,
+  NTag,
+  type DataTableColumns,
+} from "naive-ui"
+import { h, onMounted, ref } from "vue"
 import AppIcon from "../components/AppIcon.vue"
 import MetricCard from "../components/MetricCard.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { metrics, sources, tasks, vaultProject } from "../mock-data"
+import { dashboardApi } from "../api/client"
+import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
-import type { IconName, SourceDocument } from "../types"
+import type { IconName, IngestTask, Metric, SourceDocument, VaultProject } from "../types"
+
+const loading = ref(true)
+const errorMessage = ref("")
+const metrics = ref<Metric[]>([])
+const sources = ref<SourceDocument[]>([])
+const activeTask = ref<IngestTask>()
+const vaultProject = ref<VaultProject>({
+  name: "AI Wiki Vault",
+  path: "",
+  purpose: "绑定本地 Obsidian Vault 后开始构建 AI Wiki。",
+  health: "needs-setup",
+  lastIndexedAt: "未知",
+})
 
 const sourceColumns: DataTableColumns<SourceDocument> = [
   {
@@ -45,18 +70,38 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
   { title: "目标页面", key: "targetPage" },
 ]
 
-const activeTask = tasks.find((task) => task.status === "Processing")
+async function loadOverview() {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    const overview = await dashboardApi.overview()
+    vaultProject.value = overview.vaultProject
+    metrics.value = overview.metrics
+    sources.value = overview.recentSources
+    activeTask.value = overview.activeTask
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadOverview)
 </script>
 
 <template>
   <section class="page-grid dashboard-grid">
+    <NAlert v-if="errorMessage" type="error" :bordered="false">
+      {{ errorMessage }}
+    </NAlert>
+
     <div class="workspace-header">
       <div>
-        <NTag type="success" round :bordered="false">
+        <NTag :type="vaultProject.health === 'ready' ? 'success' : 'warning'" round :bordered="false">
           <template #icon>
-            <AppIcon name="check" />
+            <AppIcon :name="vaultProject.health === 'ready' ? 'check' : 'alert'" />
           </template>
-          Vault ready
+          {{ vaultProject.health === "ready" ? "Vault ready" : "Needs setup" }}
         </NTag>
         <h2>{{ vaultProject.name }}</h2>
         <p>{{ vaultProject.purpose }}</p>
@@ -68,7 +113,11 @@ const activeTask = tasks.find((task) => task.status === "Processing")
       </div>
     </div>
 
-    <div class="metric-grid">
+    <div v-if="loading" class="section-panel">
+      <NSpin />
+    </div>
+
+    <div v-else class="metric-grid">
       <MetricCard v-for="item in metrics" :key="item.label" :metric="item" />
     </div>
 
@@ -87,8 +136,8 @@ const activeTask = tasks.find((task) => task.status === "Processing")
             <div class="pipeline-step__icon">
               <AppIcon name="upload" />
             </div>
-            <strong>多模态投喂</strong>
-            <span>文件、URL、音视频统一进入 raw/</span>
+            <strong>资料导入</strong>
+            <span>文件、URL 统一进入 raw/</span>
           </div>
           <div class="pipeline-step active">
             <div class="pipeline-step__icon">
@@ -109,7 +158,7 @@ const activeTask = tasks.find((task) => task.status === "Processing")
               <AppIcon name="search" />
             </div>
             <strong>RAG 检索</strong>
-            <span>关键词 + 向量 + wikilink</span>
+            <span>关键词 + wikilink</span>
           </div>
         </div>
       </NCard>
@@ -130,13 +179,14 @@ const activeTask = tasks.find((task) => task.status === "Processing")
           />
           <small>已写入：{{ activeTask.writtenFiles.join("、") || "暂无" }}</small>
         </div>
+        <NEmpty v-else description="暂无运行中的摄入任务" />
       </NCard>
     </div>
 
     <NCard title="最近资料">
       <template #header-extra>
         <NSpace :size="8">
-          <NButton secondary>
+          <NButton secondary :loading="loading" @click="loadOverview">
             <template #icon>
               <AppIcon name="refresh" />
             </template>
@@ -150,7 +200,7 @@ const activeTask = tasks.find((task) => task.status === "Processing")
           </NButton>
         </NSpace>
       </template>
-      <NDataTable :columns="sourceColumns" :data="sources.slice(0, 4)" :bordered="false" />
+      <NDataTable :columns="sourceColumns" :data="sources.slice(0, 4)" :loading="loading" :bordered="false" />
     </NCard>
   </section>
 </template>

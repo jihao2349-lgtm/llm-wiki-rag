@@ -1,53 +1,178 @@
 <script setup lang="ts">
-import { ref } from "vue"
-import { NButton, NDropdown, NInput, NSpace, NTag } from "naive-ui"
+import { computed, onMounted, ref } from "vue"
+import { NAlert, NButton, NDropdown, NEmpty, NInput, NSpace, NSpin, NTag } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
-import { chatMessages, chatSuggestions, references } from "../mock-data"
+import { chatApi, wikiApi } from "../api/client"
+import { toErrorMessage } from "../utils/api-state"
+import type { ChatMessage, ChatReference, ChatSession } from "../types"
 
-const chatInput = ref("这些资料里关于 Agent Memory 的观点有哪些？")
+const loading = ref(true)
+const streaming = ref(false)
+const errorMessage = ref("")
+const chatInput = ref("")
+const sessions = ref<ChatSession[]>([])
+const activeSessionId = ref("")
+const messages = ref<ChatMessage[]>([])
 
 const saveOptions = [
   { key: "synthesis", label: "保存为合成观点 (synthesis)" },
   { key: "question", label: "保存为开放问题 (question)" },
-  { key: "append", label: "追加到已有页面" },
 ]
+
+const chatSuggestions = [
+  { question: "这批资料的核心概念是什么？", reason: "适合快速建立 wiki/concepts 页面" },
+  { question: "有哪些结论需要继续核验？", reason: "帮助发现证据不足的页面" },
+  { question: "哪些页面可以合并成 synthesis？", reason: "适合沉淀跨资料观点" },
+]
+
+const references = computed<ChatReference[]>(() =>
+  messages.value.flatMap((message) => message.references ?? []),
+)
+
+const lastAssistantMessage = computed(() =>
+  [...messages.value].reverse().find((message) => message.role === "assistant"),
+)
+
+async function loadSessions() {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    sessions.value = await chatApi.sessions()
+    if (sessions.value[0]) {
+      await selectSession(sessions.value[0].id)
+    }
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function selectSession(sessionId: string) {
+  activeSessionId.value = sessionId
+  messages.value = await chatApi.messages(sessionId)
+}
+
+async function createSession() {
+  errorMessage.value = ""
+  try {
+    const session = await chatApi.createSession()
+    sessions.value.unshift(session)
+    await selectSession(session.id)
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  }
+}
 
 function applySuggestion(question: string) {
   chatInput.value = question
 }
+
+async function sendQuestion() {
+  if (!chatInput.value.trim()) return
+  if (!activeSessionId.value) await createSession()
+  if (!activeSessionId.value) return
+
+  const question = chatInput.value.trim()
+  chatInput.value = ""
+  errorMessage.value = ""
+  streaming.value = true
+
+  const assistantMessage: ChatMessage = {
+    id: crypto.randomUUID(),
+    role: "assistant",
+    content: "",
+    references: [],
+  }
+
+  messages.value.push({ id: crypto.randomUUID(), role: "user", content: question })
+  messages.value.push(assistantMessage)
+
+  try {
+    await chatApi.stream(
+      { sessionId: activeSessionId.value, question, maxReferences: 5 },
+      ({ event, data }) => {
+        if (event === "reference" && Array.isArray(data)) {
+          assistantMessage.references = data as ChatReference[]
+        }
+        if (event === "delta" && typeof data === "object" && data && "content" in data) {
+          assistantMessage.content += String((data as { content: unknown }).content)
+        }
+        if (event === "done" && typeof data === "object" && data && "messageId" in data) {
+          assistantMessage.id = String((data as { messageId: unknown }).messageId)
+        }
+      },
+    )
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    streaming.value = false
+  }
+}
+
+async function saveAnswer(targetType: "synthesis" | "question") {
+  if (!activeSessionId.value || !lastAssistantMessage.value) return
+  try {
+    await chatApi.saveAnswer({
+      sessionId: activeSessionId.value,
+      messageId: lastAssistantMessage.value.id,
+      targetType,
+    })
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  }
+}
+
+function handleSaveSelect(key: string | number) {
+  if (key === "synthesis" || key === "question") void saveAnswer(key)
+}
+
+async function openReference(ref: ChatReference) {
+  try {
+    await wikiApi.open(ref.path)
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  }
+}
+
+onMounted(loadSessions)
 </script>
 
 <template>
   <section class="page-grid chat-grid">
+    <NAlert v-if="errorMessage" type="error" :bordered="false">
+      {{ errorMessage }}
+    </NAlert>
+
     <aside class="section-panel conversation-list">
-      <NButton type="primary" block>
+      <NButton type="primary" block @click="createSession">
         <template #icon>
           <AppIcon name="plus" />
         </template>
         新建对话
       </NButton>
-      <button class="conversation-item active" type="button">
-        <strong>Agent Memory 观点汇总</strong>
-        <span>3 条引用 · 刚刚</span>
-      </button>
-      <button class="conversation-item" type="button">
-        <strong>本地优先知识库设计</strong>
-        <span>5 条引用 · 昨天</span>
-      </button>
-      <button class="conversation-item" type="button">
-        <strong>RAG 与长上下文比较</strong>
-        <span>2 条引用 · 周二</span>
-      </button>
-      <button class="conversation-item" type="button">
-        <strong>多模态摄入流程</strong>
-        <span>4 条引用 · 上周</span>
-      </button>
+      <NSpin v-if="loading" />
+      <NEmpty v-else-if="sessions.length === 0" description="暂无对话" />
+      <template v-else>
+        <button
+          v-for="session in sessions"
+          :key="session.id"
+          class="conversation-item"
+          :class="{ active: activeSessionId === session.id }"
+          type="button"
+          @click="selectSession(session.id)"
+        >
+          <strong>{{ session.title }}</strong>
+          <span>{{ session.updatedAt }}</span>
+        </button>
+      </template>
     </aside>
 
     <main class="section-panel chat-panel">
       <div class="message-stream">
+        <NEmpty v-if="messages.length === 0" description="选择一个会话或新建对话后开始提问" />
         <div
-          v-for="message in chatMessages"
+          v-for="message in messages"
           :key="message.id"
           class="message"
           :class="message.role === 'user' ? 'user-message' : 'assistant-message'"
@@ -66,6 +191,7 @@ function applySuggestion(question: string) {
                 round
                 type="info"
                 size="small"
+                @click="openReference(ref)"
               >
                 {{ `[${ref.id}] ${ref.title}` }}
               </NTag>
@@ -106,6 +232,7 @@ function applySuggestion(question: string) {
             <NDropdown
               :options="saveOptions"
               trigger="click"
+              @select="handleSaveSelect"
             >
               <NButton secondary>
                 <template #icon>
@@ -114,7 +241,7 @@ function applySuggestion(question: string) {
                 保存到 Wiki
               </NButton>
             </NDropdown>
-            <NButton type="primary">
+            <NButton type="primary" :loading="streaming" @click="sendQuestion">
               <template #icon>
                 <AppIcon name="spark" />
               </template>
@@ -132,7 +259,13 @@ function applySuggestion(question: string) {
           <p>点击在 Wiki 预览中打开对应 Markdown。</p>
         </div>
       </div>
-      <button v-for="ref in references" :key="ref.id" class="reference-item" type="button">
+      <button
+        v-for="ref in references"
+        :key="ref.id"
+        class="reference-item"
+        type="button"
+        @click="openReference(ref)"
+      >
         <strong>{{ `[${ref.id}] ${ref.title}` }}</strong>
         <span>{{ ref.path }}</span>
         <small>{{ ref.quote }}</small>

@@ -46,6 +46,7 @@ export type SourceStatus = "已摄入" | "解析中" | "待摄入" | "失败"
 export type TaskStatus = "Pending" | "Processing" | "Done" | "Failed" | "Cancelled"
 
 export interface VaultProject {
+  id?: number
   name: string
   path: string
   purpose: string
@@ -75,6 +76,13 @@ export interface SourceDocument {
   size?: string
 }
 
+export interface SourcePreview {
+  sourceId: string
+  title: string
+  extractedTextPath: string
+  content: string
+}
+
 export interface IngestTask {
   taskId: string
   sourceTitle: string
@@ -84,6 +92,13 @@ export interface IngestTask {
   errorMessage?: string
   updatedAt: string
   writtenFiles: string[]
+}
+
+export interface WikiTreeNode {
+  path: string
+  title: string
+  type: "file" | "directory"
+  children?: WikiTreeNode[]
 }
 
 export interface WikiPage {
@@ -103,6 +118,12 @@ export interface ChatReference {
   quote: string
 }
 
+export interface ChatSession {
+  id: string
+  title: string
+  updatedAt: string
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "assistant"
@@ -117,8 +138,11 @@ export interface ChatSuggestion {
 }
 
 export interface LlmSettings {
+  vaultId?: number
   provider: string
   baseUrl: string
+  apiKey?: string
+  apiKeyMasked?: string
   model: string
   maxContextSize: number
   temperature: number
