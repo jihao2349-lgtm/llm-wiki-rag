@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jihao.aiwiki.mapper.WikiPageMapper">
+
+    <resultMap id="BaseResultMap" type="com.jihao.aiwiki.entity.WikiPageDO">
+        <id column="id" property="id"/>
+        <result column="vault_id" property="vaultId"/>
+        <result column="path" property="path"/>
+        <result column="title" property="title"/>
+        <result column="type" property="type"/>
+        <result column="tags" property="tags"/>
+        <result column="related" property="related"/>
+        <result column="content_hash" property="contentHash"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, vault_id, path, title, type, tags, related, content_hash, deleted, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wiki_page (vault_id, path, title, type, tags, related, content_hash, deleted)
+        VALUES (#{vaultId}, #{path}, #{title}, #{type}, #{tags}, #{related}, #{contentHash}, 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wiki_page
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectByVaultIdAndPath" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wiki_page
+        WHERE vault_id = #{vaultId} AND path = #{path} AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectByVaultId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wiki_page
+        WHERE vault_id = #{vaultId} AND deleted = 0
+        ORDER BY path
+    </select>
+
+    <select id="countByVaultId" resultType="long">
+        SELECT COUNT(*) FROM wiki_page WHERE vault_id = #{vaultId} AND deleted = 0
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO wiki_page (vault_id, path, title, type, tags, related, content_hash, deleted)
+        VALUES (#{vaultId}, #{path}, #{title}, #{type}, #{tags}, #{related}, #{contentHash}, 0)
+        ON DUPLICATE KEY UPDATE
+            title        = #{title},
+            type         = #{type},
+            tags         = #{tags},
+            related      = #{related},
+            content_hash = #{contentHash},
+            deleted      = 0
+    </insert>
+
+    <update id="markDeletedByVaultIdAndPathNotIn">
+        UPDATE wiki_page
+        SET deleted = 1
+        WHERE vault_id = #{vaultId}
+          AND deleted = 0
+        <if test="activePaths != null and activePaths.size() > 0">
+            AND path NOT IN
+            <foreach collection="activePaths" item="p" open="(" separator="," close=")">
+                #{p}
+            </foreach>
+        </if>
+    </update>
+
+</mapper>
