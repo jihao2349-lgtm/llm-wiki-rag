@@ -41,6 +41,12 @@ public enum ErrorCode {
     /** URL 格式无效 */
     SOURCE_URL_INVALID(4002, "url invalid"),
 
+    /** Wiki 页面不存在 */
+    WIKI_PAGE_NOT_FOUND(4042, "wiki page not found"),
+
+    /** Wiki 路径不合法 */
+    WIKI_PATH_FORBIDDEN(4032, "wiki path forbidden"),
+
     /** LLM Provider 调用失败 */
     LLM_CALL_FAILED(6001, "llm call failed"),
 
