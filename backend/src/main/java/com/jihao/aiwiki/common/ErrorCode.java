@@ -32,6 +32,15 @@ public enum ErrorCode {
     /** 摄入任务状态不允许当前操作 */
     TASK_STATE_INVALID(3001, "task state invalid"),
 
+    /** 资料记录不存在 */
+    SOURCE_NOT_FOUND(4041, "source not found"),
+
+    /** URL 导入 SSRF 攻击被拒绝 */
+    SOURCE_URL_SSRF(4031, "url ssrf blocked"),
+
+    /** URL 格式无效 */
+    SOURCE_URL_INVALID(4002, "url invalid"),
+
     /** LLM Provider 调用失败 */
     LLM_CALL_FAILED(6001, "llm call failed"),
 
