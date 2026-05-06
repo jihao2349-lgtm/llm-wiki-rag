@@ -152,6 +152,44 @@ public class VaultFileService {
     }
 
     /**
+     * 原子写入二进制文件。
+     *
+     * @param vaultRoot    Vault 根目录
+     * @param relativePath Vault 内相对路径
+     * @param content      文件字节内容
+     */
+    public void writeBytesAtomically(Path vaultRoot, String relativePath, byte[] content) {
+        Path targetPath = pathValidator.resolveInsideVault(vaultRoot, relativePath);
+        Path parentPath = targetPath.getParent();
+        try {
+            if (parentPath != null) {
+                Files.createDirectories(parentPath);
+            }
+            Path tmpPath = Files.createTempFile(parentPath, ".aiwiki-", ".tmp");
+            Files.write(tmpPath, content);
+            moveReplacing(tmpPath, targetPath);
+        } catch (IOException | SecurityException exception) {
+            throw new BusinessException(ErrorCode.VAULT_PATH_UNSAFE, "failed to write vault binary file");
+        }
+    }
+
+    /**
+     * 读取 Vault 内文件的字节内容。
+     *
+     * @param vaultRoot    Vault 根目录
+     * @param relativePath Vault 内相对路径
+     * @return 文件字节内容
+     */
+    public byte[] readBytes(Path vaultRoot, String relativePath) {
+        Path targetPath = pathValidator.resolveInsideVault(vaultRoot, relativePath);
+        try {
+            return Files.readAllBytes(targetPath);
+        } catch (IOException | SecurityException exception) {
+            throw new BusinessException(ErrorCode.VAULT_PATH_UNSAFE, "failed to read vault file bytes");
+        }
+    }
+
+    /**
      * 尽量使用原子替换，不支持时退回普通替换。
      *
      * @param sourcePath 临时文件

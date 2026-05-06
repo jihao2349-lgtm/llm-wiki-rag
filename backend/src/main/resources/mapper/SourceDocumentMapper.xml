@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jihao.aiwiki.mapper.SourceDocumentMapper">
+
+    <resultMap id="BaseResultMap" type="com.jihao.aiwiki.entity.SourceDocumentDO">
+        <id column="id" property="id"/>
+        <result column="vault_id" property="vaultId"/>
+        <result column="type" property="type"/>
+        <result column="title" property="title"/>
+        <result column="original_path" property="originalPath"/>
+        <result column="original_hash" property="originalHash"/>
+        <result column="extracted_text_path" property="extractedTextPath"/>
+        <result column="source_url" property="sourceUrl"/>
+        <result column="status" property="status"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, vault_id, type, title, original_path, original_hash, extracted_text_path,
+        source_url, status, error_message, deleted, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO source_document (vault_id, type, title, original_path, original_hash,
+            extracted_text_path, source_url, status, error_message, deleted)
+        VALUES (#{vaultId}, #{type}, #{title}, #{originalPath}, #{originalHash},
+            #{extractedTextPath}, #{sourceUrl}, #{status}, #{errorMessage}, 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM source_document
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectByVaultIdAndPath" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM source_document
+        WHERE vault_id = #{vaultId} AND original_path = #{originalPath} AND deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM source_document
+        WHERE vault_id = #{vaultId} AND deleted = 0
+        <if test="type != null and type != ''">AND type = #{type}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+        ORDER BY create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM source_document
+        WHERE vault_id = #{vaultId} AND deleted = 0
+        <if test="type != null and type != ''">AND type = #{type}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+    </select>
+
+    <update id="updateByPrimaryKey">
+        UPDATE source_document
+        SET vault_id           = #{vaultId},
+            type               = #{type},
+            title              = #{title},
+            original_path      = #{originalPath},
+            original_hash      = #{originalHash},
+            extracted_text_path = #{extractedTextPath},
+            source_url         = #{sourceUrl},
+            status             = #{status},
+            error_message      = #{errorMessage}
+        WHERE id = #{id}
+    </update>
+
+    <select id="countByVaultId" resultType="long">
+        SELECT COUNT(*) FROM source_document WHERE vault_id = #{vaultId} AND deleted = 0
+    </select>
+
+</mapper>
