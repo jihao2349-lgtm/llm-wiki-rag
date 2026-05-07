@@ -2,6 +2,7 @@ package com.jihao.aiwiki.domain.ingest;
 
 import com.jihao.aiwiki.domain.ingest.pipeline.FileBlock;
 import com.jihao.aiwiki.domain.ingest.pipeline.FileBlockParser;
+import com.jihao.aiwiki.domain.ingest.pipeline.ParseResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -70,19 +71,78 @@ class FileBlockParserTest {
     }
 
     @Test
-    void parse_missingEndMarker_returnsEmpty() {
+    void parse_missingEndMarker_returnsEmptyBlocksWithWarning() {
         String llmOutput = """
                 ---FILE: wiki/concepts/agent.md---
                 content without end marker
                 """;
 
-        List<FileBlock> blocks = parser.parse(llmOutput);
-        assertThat(blocks).isEmpty();
+        ParseResult result = parser.parseWithWarnings(llmOutput);
+        assertThat(result.blocks()).isEmpty();
+        assertThat(result.warnings()).hasSize(1);
+        assertThat(result.warnings().get(0)).contains("未关闭");
     }
 
     @Test
     void parse_nullInput_returnsEmpty() {
         assertThat(parser.parse(null)).isEmpty();
         assertThat(parser.parse("")).isEmpty();
+    }
+
+    @Test
+    void parse_crlfInput_parsedCorrectly() {
+        String llmOutput = "---FILE: wiki/concepts/agent.md---\r\n# Agent\r\n---END FILE---\r\n";
+
+        List<FileBlock> blocks = parser.parse(llmOutput);
+
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).getPath()).isEqualTo("wiki/concepts/agent.md");
+        assertThat(blocks.get(0).getContent()).doesNotContain("\r");
+    }
+
+    @Test
+    void parse_fenceInsideBlock_doesNotTriggerEarlyClose() {
+        String llmOutput = """
+                ---FILE: wiki/concepts/transformer.md---
+                ---
+                type: concept
+                ---
+                # Transformer
+
+                ```python
+                ---END FILE---
+                this line is inside the fence, not a closer
+                ```
+                ---END FILE---
+                """;
+
+        List<FileBlock> blocks = parser.parse(llmOutput);
+
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).getContent()).contains("this line is inside the fence");
+    }
+
+    @Test
+    void parse_emptyPath_skippedWithWarning() {
+        String llmOutput = "---FILE:   ---\ncontent\n---END FILE---\n";
+
+        ParseResult result = parser.parseWithWarnings(llmOutput);
+
+        assertThat(result.blocks()).isEmpty();
+        assertThat(result.warnings()).hasSize(1);
+        assertThat(result.warnings().get(0)).contains("空路径");
+    }
+
+    @Test
+    void parse_unclosedBlock_warningRecorded() {
+        String llmOutput = """
+                ---FILE: wiki/concepts/agent.md---
+                some content
+                """;
+
+        ParseResult result = parser.parseWithWarnings(llmOutput);
+
+        assertThat(result.blocks()).isEmpty();
+        assertThat(result.warnings()).anyMatch(w -> w.contains("wiki/concepts/agent.md"));
     }
 }

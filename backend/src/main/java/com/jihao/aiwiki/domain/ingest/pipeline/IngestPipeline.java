@@ -38,15 +38,24 @@ public class IngestPipeline {
     private final VaultFileService fileService;
     private final FileBlockParser fileBlockParser;
     private final MarkdownFrontmatterValidator frontmatterValidator;
+    private final IngestContentSanitizer contentSanitizer;
+    private final SourcesMerger sourcesMerger;
+    private final ReviewBlockParser reviewBlockParser;
 
     public IngestPipeline(LlmClient llmClient,
                           VaultFileService fileService,
                           FileBlockParser fileBlockParser,
-                          MarkdownFrontmatterValidator frontmatterValidator) {
+                          MarkdownFrontmatterValidator frontmatterValidator,
+                          IngestContentSanitizer contentSanitizer,
+                          SourcesMerger sourcesMerger,
+                          ReviewBlockParser reviewBlockParser) {
         this.llmClient = llmClient;
         this.fileService = fileService;
         this.fileBlockParser = fileBlockParser;
         this.frontmatterValidator = frontmatterValidator;
+        this.contentSanitizer = contentSanitizer;
+        this.sourcesMerger = sourcesMerger;
+        this.reviewBlockParser = reviewBlockParser;
     }
 
     /**
@@ -60,7 +69,8 @@ public class IngestPipeline {
     public void run(IngestTaskRunContext context,
                     VaultProjectDO vault,
                     SourceDocumentDO source,
-                    LlmChatRequest llmRequest) throws Exception {
+                    LlmChatRequest llmRequest,
+                    String language) throws Exception {
 
         IngestTaskDO task = context.getTask();
         Path vaultRoot = Path.of(vault.getPath());
@@ -84,7 +94,7 @@ public class IngestPipeline {
 
         String sourceSlug = slugFromPath(source.getOriginalPath());
         String today = LocalDate.now().toString();
-        String generatePrompt = buildGeneratePrompt(analysisJson, sourceText, sourceSlug, today, source.getTitle());
+        String generatePrompt = buildGeneratePrompt(analysisJson, sourceText, sourceSlug, today, source.getTitle(), language);
         String llmOutput = callLlm(llmRequest, generatePrompt, false);
 
         List<FileBlock> blocks = fileBlockParser.parse(llmOutput);
@@ -92,35 +102,75 @@ public class IngestPipeline {
             throw new IllegalStateException("LLM returned no FILE blocks");
         }
 
-        // ---- Validate all blocks before writing ----
-        List<String> errors = new ArrayList<>();
-        for (FileBlock block : blocks) {
-            String pathErr = frontmatterValidator.validatePath(block.getPath());
-            if (pathErr != null) errors.add("path error [" + block.getPath() + "]: " + pathErr);
-            String fmErr = frontmatterValidator.validateFrontmatter(block.getContent());
-            if (fmErr != null) errors.add("frontmatter error [" + block.getPath() + "]: " + fmErr);
-        }
-        if (!errors.isEmpty()) {
-            throw new IllegalStateException("FILE block validation failed: " + String.join("; ", errors));
-        }
-
-        // ---- Write via tmp/ then atomic replace ----
-        String tmpBase = ".ai-wiki/tmp/" + task.getTaskId() + "/";
+        // ---- Per-block 清洗、校验（warn-and-skip）、三分支写入 ----
+        List<String> warnings = new ArrayList<>();
         List<String> writtenFiles = new ArrayList<>();
 
         for (FileBlock block : blocks) {
             if (context.isCancellationRequested()) return;
-            String tmpPath = tmpBase + block.getPath();
-            fileService.writeStringAtomically(vaultRoot, tmpPath, block.getContent());
-            fileService.writeStringAtomically(vaultRoot, block.getPath(), block.getContent());
+
+            String cleanedContent = contentSanitizer.sanitize(block.getContent());
+
+            String pathErr = frontmatterValidator.validatePath(block.getPath());
+            String fmErr = frontmatterValidator.validateFrontmatter(cleanedContent);
+            if (pathErr != null || fmErr != null) {
+                warnings.add("[SKIP] " + block.getPath() + ": " + (pathErr != null ? pathErr : fmErr));
+                continue;
+            }
+
+            if ("wiki/log.md".equals(block.getPath())) {
+                String existing = readSafe(vaultRoot, "wiki/log.md");
+                fileService.writeStringAtomically(vaultRoot, "wiki/log.md", existing + "\n" + cleanedContent);
+            } else if ("wiki/index.md".equals(block.getPath()) || "wiki/overview.md".equals(block.getPath())) {
+                fileService.writeStringAtomically(vaultRoot, block.getPath(), cleanedContent);
+            } else {
+                String existing = readSafe(vaultRoot, block.getPath());
+                String merged = sourcesMerger.mergeSourcesIntoContent(cleanedContent, existing.isBlank() ? null : existing);
+                fileService.writeStringAtomically(vaultRoot, block.getPath(), merged);
+            }
+
             writtenFiles.add(block.getPath());
             context.updateWrittenFiles(writtenFiles.stream()
                     .collect(Collectors.joining(",", "[\"", "\"]"))
                     .replace(",", "\",\""));
         }
 
-        // ---- Update wiki/log.md ----
-        appendWikiLog(vaultRoot, task.getTaskId(), source.getTitle(), writtenFiles, today);
+        if (!warnings.isEmpty()) {
+            log.warn("Ingest block warnings: {}", warnings);
+        }
+
+        List<ReviewItem> reviews = reviewBlockParser.parse(llmOutput);
+        if (!reviews.isEmpty()) {
+            log.info("Ingest REVIEW items ({}): {}", reviews.size(), reviews);
+        }
+
+        // ---- source summary 兜底：LLM 未生成摘要页时自动创建 stub ----
+        boolean hasSourcePage = writtenFiles.stream().anyMatch(p -> p.startsWith("wiki/sources/"));
+        if (!hasSourcePage) {
+            String stubPath = "wiki/sources/" + sourceSlug + ".md";
+            String analysisPreview = analysisJson.length() > 3000
+                    ? analysisJson.substring(0, 3000) : analysisJson;
+            String sourceRef = source.getOriginalPath() != null ? source.getOriginalPath() : sourceSlug;
+            String stubContent = """
+                    ---
+                    type: source
+                    title: "Source: %s"
+                    created: %s
+                    updated: %s
+                    sources: ["%s"]
+                    tags: []
+                    related: []
+                    ---
+
+                    # Source: %s
+
+                    %s
+                    """.formatted(source.getTitle(), today, today, sourceRef,
+                    source.getTitle(), analysisPreview);
+            fileService.writeStringAtomically(vaultRoot, stubPath, stubContent);
+            writtenFiles.add(stubPath);
+            log.info("Generated fallback source summary: {}", stubPath);
+        }
 
         context.updateProgress(IngestTaskStage.INDEXING, 90);
     }
@@ -175,65 +225,96 @@ public class IngestPipeline {
     private String buildAnalyzePrompt(String purpose, String schema, String index,
                                        String sourceText, SourceDocumentDO source) {
         return """
-                Analyze the following source document and output a JSON analysis.
+                You are analyzing a source document to prepare knowledge extraction.
 
-                ## Purpose
+                [Purpose of this wiki]
                 %s
 
-                ## Schema
+                [Wiki Schema]
                 %s
 
-                ## Current Wiki Index
+                [Current Wiki Index]
                 %s
 
-                ## Source Document
-                Title: %s
+                [Folder Context]
                 Path: %s
 
-                Content:
+                [Source Document]
+                Title: %s
+
                 %s
 
-                Output JSON with keys: summary, entities, concepts, keyPoints, relatedPages, conflicts, reviewQuestions, proposedPages.
-                """.formatted(purpose, schema, index, source.getTitle(), source.getOriginalPath(), sourceText);
+                ---
+
+                Analyze the document and respond in the following structured format (Markdown, not JSON):
+
+                ## Key Entities
+                For each: Name | Type (person/org/tool) | Role in this document | Already in wiki index? (yes/no)
+
+                ## Key Concepts
+                For each: Name | Short definition | Why important here | Already in wiki index? (yes/no)
+
+                ## Main Arguments & Findings
+                For each: Core claim | Supporting evidence | Evidence strength (strong/moderate/weak)
+
+                ## Connections to Existing Wiki
+                How this document relates to existing content (reinforces/challenges/extends which pages)
+
+                ## Contradictions & Tensions
+                Conflicts with existing wiki; internal tensions in the document
+
+                ## Recommendations
+                Which pages to create or update | Key content focus | Open questions worth flagging
+                """.formatted(purpose, schema, index, source.getOriginalPath(), source.getTitle(), sourceText);
     }
 
     private String buildGeneratePrompt(String analysisJson, String sourceText,
-                                        String sourceSlug, String today, String title) {
+                                        String sourceSlug, String today, String title, String language) {
         return """
-                Based on the analysis below, generate Obsidian Markdown wiki pages in FILE block format.
+                Language instruction: %s. All generated wiki page content MUST be written in this language.
+
+                FRONTMATTER RULES (mandatory):
+                - First line must be exactly `---`, never use ```yaml fences
+                - Each field on its own line; arrays use inline format: tags: [a, b]
+                - `related` uses slugs only, no wiki/ prefix, no .md suffix
+                - `sources` must include the current source filename
+                - Wikilinks [[...]] only in body, never in frontmatter values
+
+                REQUIRED FILES (generate all of them):
+                1. wiki/sources/%s.md (MANDATORY — exact path)
+                2. wiki/entities/<slug>.md for each key entity
+                3. wiki/concepts/<slug>.md for each key concept
+                4. wiki/index.md — append new entries, preserve ALL existing entries
+                5. wiki/log.md — only the new entry: ## [%s] ingest | %s
+                6. wiki/overview.md — 2-5 paragraph overview of the entire wiki content
+
+                FILE block format (strict):
+                ---FILE: wiki/path/file.md---
+                <content>
+                ---END FILE---
+
+                For items requiring human judgment, use REVIEW blocks (placed outside FILE blocks):
+                ---REVIEW: contradiction | Title---
+                Description of the issue
+                OPTIONS: Create Page | Skip
+                PAGES: wiki/relevant-page.md
+                SEARCH: query1 | query2
+                ---END REVIEW---
+                Types: contradiction / duplicate / missing-page / suggestion
+
+                OUTPUT RULES:
+                - First character of your response must be `-` (start of ---FILE:)
+                - No preamble, summary, or analysis text outside FILE/REVIEW blocks
+                - Nothing between FILE blocks except REVIEW blocks
 
                 Analysis:
                 %s
 
-                Source text (truncated):
+                Source text:
                 %s
 
-                Rules:
-                - Each file must use the format: ---FILE: wiki/path/file.md---\\n<content>\\n---END FILE---
-                - All paths must start with wiki/
-                - Each page must have frontmatter with type, title, sources, updated
-                - sources must reference raw/sources/ paths
-                - The source slug is: %s
-                - Today's date: %s
-                - Original title: %s
-                - type must be one of: source, concept, entity, synthesis, question, index, overview, log
-                - Directory mapping (must follow exactly): concept→wiki/concepts/, entity→wiki/entities/, synthesis→wiki/synthesis/, question→wiki/questions/, source→wiki/sources/, index→wiki/, overview→wiki/, log→wiki/
-
-                Generate the wiki pages now:
-                """.formatted(analysisJson, sourceText.length() > 8000 ? sourceText.substring(0, 8000) : sourceText,
-                sourceSlug, today, title);
-    }
-
-    private void appendWikiLog(Path vaultRoot, String taskId, String title,
-                                List<String> files, String today) {
-        try {
-            String existing = readSafe(vaultRoot, "wiki/log.md");
-            String entry = "\n## " + today + " - Ingest " + taskId + "\n- Source: " + title
-                    + "\n- Files: " + String.join(", ", files) + "\n";
-            fileService.writeStringAtomically(vaultRoot, "wiki/log.md", existing + entry);
-        } catch (Exception e) {
-            log.warn("Failed to update wiki/log.md", e);
-        }
+                Language instruction (repeated): %s. Generate ALL content in this language.
+                """.formatted(language, sourceSlug, today, title, analysisJson, sourceText, language);
     }
 
     private String slugFromPath(String path) {
