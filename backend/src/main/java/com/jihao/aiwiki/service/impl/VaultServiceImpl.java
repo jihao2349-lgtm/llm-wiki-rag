@@ -12,7 +12,6 @@ import com.jihao.aiwiki.service.VaultService;
 import com.jihao.aiwiki.vo.vault.VaultDetailVO;
 import com.jihao.aiwiki.vo.vault.VaultReindexVO;
 import java.nio.file.Path;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
  * @date 2026/05/06
  */
 @Service
-@ConditionalOnBean(VaultProjectMapper.class)
 public class VaultServiceImpl implements VaultService {
 
     /** Vault 就绪状态 */
