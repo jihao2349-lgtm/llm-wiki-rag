@@ -136,11 +136,12 @@ public class WikiPageServiceImpl implements WikiPageService {
                           String content = Files.readString(p);
                           ParsedFrontmatter fm = frontmatterParser.parse(content);
                           String title = fm.getTitle() != null ? fm.getTitle() : filenameWithoutExt(relative);
+                          String type = fm.getType() != null ? fm.getType() : inferTypeFromPath(relative);
                           WikiPageDO page = WikiPageDO.builder()
                                   .vaultId(vaultId)
                                   .path(relative)
                                   .title(title)
-                                  .type(fm.getType())
+                                  .type(type)
                                   .tags(toJson(fm.getTags()))
                                   .related(toJson(fm.getRelated()))
                                   .deleted(0)
@@ -206,6 +207,16 @@ public class WikiPageServiceImpl implements WikiPageService {
             // return what we have
         }
         return nodes;
+    }
+
+    private String inferTypeFromPath(String relative) {
+        if (relative.equals("wiki/index.md")) return "index";
+        if (relative.contains("/sources/")) return "source";
+        if (relative.contains("/concepts/")) return "concept";
+        if (relative.contains("/entities/")) return "entity";
+        if (relative.contains("/synthesis/")) return "synthesis";
+        if (relative.contains("/questions/")) return "question";
+        return "source";
     }
 
     private String filenameWithoutExt(String path) {

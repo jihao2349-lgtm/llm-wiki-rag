@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import { NAlert, NButton, NEmpty, NInput, NSpace, NSpin, NTag } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
 import { wikiApi } from "../api/client"
@@ -7,6 +7,34 @@ import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
 import type { IconName, WikiPage, WikiTreeNode } from "../types"
 
+// ---- Resizable panel ----
+const TREE_MIN = 180
+const TREE_MAX = 600
+const treeWidth = ref(280)
+const isDragging = ref(false)
+
+function onDividerMousedown(e: MouseEvent) {
+  e.preventDefault()
+  isDragging.value = true
+  const startX = e.clientX
+  const startWidth = treeWidth.value
+
+  function onMousemove(ev: MouseEvent) {
+    const delta = ev.clientX - startX
+    treeWidth.value = Math.min(TREE_MAX, Math.max(TREE_MIN, startWidth + delta))
+  }
+  function onMouseup() {
+    isDragging.value = false
+    window.removeEventListener("mousemove", onMousemove)
+    window.removeEventListener("mouseup", onMouseup)
+  }
+  window.addEventListener("mousemove", onMousemove)
+  window.addEventListener("mouseup", onMouseup)
+}
+
+onUnmounted(() => { isDragging.value = false })
+
+// ---- Wiki data ----
 const loading = ref(true)
 const pageLoading = ref(false)
 const errorMessage = ref("")
@@ -132,8 +160,12 @@ onMounted(loadTree)
 </script>
 
 <template>
-  <section class="page-grid wiki-grid">
-    <NAlert v-if="errorMessage" type="error" :bordered="false">
+  <section
+    class="page-grid wiki-grid"
+    :style="{ gridTemplateColumns: `${treeWidth}px 4px minmax(0, 1fr)` }"
+    :class="{ 'wiki-grid--dragging': isDragging }"
+  >
+    <NAlert v-if="errorMessage" type="error" :bordered="false" style="grid-column: 1 / -1">
       {{ errorMessage }}
     </NAlert>
 
@@ -210,6 +242,10 @@ onMounted(loadTree)
         </template>
       </div>
     </aside>
+
+    <div class="wiki-divider" @mousedown="onDividerMousedown">
+      <div class="wiki-divider__handle" />
+    </div>
 
     <main v-if="selectedPage" class="section-panel wiki-preview">
       <div class="section-toolbar">

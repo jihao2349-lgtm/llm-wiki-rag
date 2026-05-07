@@ -999,7 +999,52 @@ button {
 
 /* ===== Wiki ===== */
 .wiki-grid {
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 280px 4px minmax(0, 1fr);
+  height: calc(100dvh - 160px);
+  min-height: 0;
+  gap: 0;
+}
+
+.wiki-grid > .section-panel {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.wiki-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 10;
+  position: relative;
+}
+
+.wiki-divider:hover,
+.wiki-grid--dragging .wiki-divider {
+  background: var(--color-primary, #0d9488);
+}
+
+.wiki-divider__handle {
+  width: 2px;
+  height: 40px;
+  border-radius: 2px;
+  background: var(--color-border, #334155);
+  transition: background 0.15s, height 0.15s;
+  pointer-events: none;
+}
+
+.wiki-divider:hover .wiki-divider__handle,
+.wiki-grid--dragging .wiki-divider__handle {
+  background: var(--color-primary, #0d9488);
+  height: 60px;
+}
+
+.wiki-grid--dragging {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .wiki-tree {
@@ -1371,6 +1416,19 @@ button {
   .two-column,
   .console-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wiki-grid {
+    height: auto;
+    grid-template-columns: 1fr !important;
+  }
+
+  .wiki-grid > .section-panel {
+    overflow-y: visible;
+  }
+
+  .wiki-divider {
+    display: none;
   }
 
   .preview-panel,
