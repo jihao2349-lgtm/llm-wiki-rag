@@ -999,7 +999,7 @@ button {
 
 /* ===== Wiki ===== */
 .wiki-grid {
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
 }
 
 .wiki-tree {
@@ -1015,6 +1015,94 @@ button {
 
 .file-row span {
   overflow-wrap: anywhere;
+}
+
+.wiki-file-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+}
+
+.tree-dir-row,
+.tree-file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tree-dir-row {
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.tree-dir-row:hover {
+  background: var(--color-bg-soft);
+}
+
+.tree-dir-row .app-icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.tree-file-row {
+  color: var(--color-text-muted);
+  font-size: 0.83rem;
+}
+
+.tree-file-row:hover {
+  background: var(--color-bg-soft);
+  color: var(--color-text);
+}
+
+.tree-file-row.active {
+  background: linear-gradient(90deg, rgba(13, 148, 136, 0.1), rgba(13, 148, 136, 0.04));
+  color: var(--color-primary-deep);
+  font-weight: 500;
+}
+
+.tree-file-row.active .app-icon {
+  color: var(--color-primary);
+}
+
+.tree-file-row .app-icon {
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+.tree-file-row span,
+.tree-dir-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-dir-row .tree-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  color: var(--color-text-subtle);
+  transition: transform 0.15s ease;
+}
+
+.tree-dir-row .tree-chevron.open {
+  transform: rotate(90deg);
 }
 
 .frontmatter {

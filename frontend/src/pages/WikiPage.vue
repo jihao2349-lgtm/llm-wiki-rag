@@ -10,42 +10,73 @@ import type { IconName, WikiPage, WikiTreeNode } from "../types"
 const loading = ref(true)
 const pageLoading = ref(false)
 const errorMessage = ref("")
-const pages = ref<WikiPage[]>([])
+const treeData = ref<WikiTreeNode[]>([])
+const flatPages = ref<WikiPage[]>([])
 const selectedPath = ref("")
 const selectedPage = ref<WikiPage>()
 const filterKeyword = ref("")
+const isSearchMode = ref(false)
+const expandedDirs = ref<Set<string>>(new Set())
 
-const filteredPages = computed(() => {
-  if (!filterKeyword.value) return pages.value
-  const kw = filterKeyword.value.toLowerCase()
-  return pages.value.filter(
-    (p) => p.path.toLowerCase().includes(kw) || p.title.toLowerCase().includes(kw),
-  )
+interface DisplayItem {
+  node: WikiTreeNode
+  depth: number
+}
+
+function buildDisplayItems(nodes: WikiTreeNode[], depth: number): DisplayItem[] {
+  const result: DisplayItem[] = []
+  for (const node of nodes) {
+    result.push({ node, depth })
+    if (node.type === "directory" && expandedDirs.value.has(node.path)) {
+      result.push(...buildDisplayItems(node.children ?? [], depth + 1))
+    }
+  }
+  return result
+}
+
+const displayItems = computed(() => {
+  if (isSearchMode.value) return []
+  return buildDisplayItems(treeData.value, 0)
 })
+
+function toggleDir(path: string) {
+  if (expandedDirs.value.has(path)) {
+    expandedDirs.value.delete(path)
+  } else {
+    expandedDirs.value.add(path)
+  }
+  expandedDirs.value = new Set(expandedDirs.value)
+}
+
+function expandAll(nodes: WikiTreeNode[]) {
+  for (const node of nodes) {
+    if (node.type === "directory") {
+      expandedDirs.value.add(node.path)
+      expandAll(node.children ?? [])
+    }
+  }
+}
 
 function flattenTree(nodes: WikiTreeNode[]): WikiPage[] {
   return nodes.flatMap((node) => {
     if (node.type === "directory") return flattenTree(node.children ?? [])
-    return [
-      {
-        path: node.path,
-        title: node.title,
-        type: "source",
-        updatedAt: "未知",
-        frontmatter: "",
-        body: "",
-      } satisfies WikiPage,
-    ]
+    return [{ path: node.path, title: node.title, type: "source", updatedAt: "未知", frontmatter: "", body: "" } satisfies WikiPage]
   })
 }
 
+const totalPageCount = computed(() => flattenTree(treeData.value).length)
+
 async function loadTree() {
   loading.value = true
+  isSearchMode.value = false
   errorMessage.value = ""
   try {
     const tree = await wikiApi.tree()
-    pages.value = flattenTree(tree)
-    if (pages.value[0]) await selectPage(pages.value[0].path)
+    treeData.value = tree
+    expandedDirs.value = new Set()
+    expandAll(tree)
+    const allPages = flattenTree(tree)
+    if (allPages[0] && !selectedPath.value) await selectPage(allPages[0].path)
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
   } finally {
@@ -72,10 +103,11 @@ async function searchPages() {
     return
   }
   loading.value = true
+  isSearchMode.value = true
   errorMessage.value = ""
   try {
-    pages.value = await wikiApi.search(filterKeyword.value)
-    if (pages.value[0]) await selectPage(pages.value[0].path)
+    flatPages.value = await wikiApi.search(filterKeyword.value)
+    if (flatPages.value[0]) await selectPage(flatPages.value[0].path)
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
   } finally {
@@ -109,7 +141,7 @@ onMounted(loadTree)
       <div class="section-toolbar">
         <div>
           <h2>wiki/</h2>
-          <p>{{ filteredPages.length }} 个页面 · 兼容 Obsidian wikilink</p>
+          <p>{{ totalPageCount }} 个页面 · 兼容 Obsidian wikilink</p>
         </div>
       </div>
       <NInput v-model:value="filterKeyword" clearable placeholder="搜索页面" @keyup.enter="searchPages">
@@ -123,20 +155,60 @@ onMounted(loadTree)
         </template>
         搜索
       </NButton>
+
       <NSpin v-if="loading" />
-      <NEmpty v-else-if="filteredPages.length === 0" description="暂无 Wiki 页面" />
-      <button
-        v-else
-        v-for="page in filteredPages"
-        :key="page.path"
-        class="file-row"
-        :class="{ active: selectedPath === page.path }"
-        type="button"
-        @click="selectPage(page.path)"
-      >
-        <AppIcon name="file" />
-        <span>{{ page.path }}</span>
-      </button>
+      <NEmpty v-else-if="!isSearchMode && displayItems.length === 0" description="暂无 Wiki 页面" />
+      <NEmpty v-else-if="isSearchMode && flatPages.length === 0" description="未找到匹配页面" />
+
+      <!-- 搜索结果：平铺列表 -->
+      <template v-else-if="isSearchMode">
+        <button
+          v-for="page in flatPages"
+          :key="page.path"
+          class="file-row"
+          :class="{ active: selectedPath === page.path }"
+          type="button"
+          @click="selectPage(page.path)"
+        >
+          <AppIcon name="file" />
+          <span>{{ page.path }}</span>
+        </button>
+      </template>
+
+      <!-- 目录树 -->
+      <div v-else class="wiki-file-tree">
+        <template v-for="item in displayItems" :key="item.node.path">
+          <!-- 目录行 -->
+          <button
+            v-if="item.node.type === 'directory'"
+            class="tree-dir-row"
+            type="button"
+            :style="{ paddingLeft: `${item.depth * 14 + 8}px` }"
+            @click="toggleDir(item.node.path)"
+          >
+            <span class="tree-chevron" :class="{ open: expandedDirs.has(item.node.path) }">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M3 2l4 3-4 3V2z"/>
+              </svg>
+            </span>
+            <AppIcon name="folder" :size="14" />
+            <span>{{ item.node.title }}</span>
+          </button>
+
+          <!-- 文件行 -->
+          <button
+            v-else
+            class="tree-file-row"
+            :class="{ active: selectedPath === item.node.path }"
+            type="button"
+            :style="{ paddingLeft: `${item.depth * 14 + 8}px` }"
+            @click="selectPage(item.node.path)"
+          >
+            <AppIcon name="file" :size="14" />
+            <span>{{ item.node.title }}</span>
+          </button>
+        </template>
+      </div>
     </aside>
 
     <main v-if="selectedPage" class="section-panel wiki-preview">

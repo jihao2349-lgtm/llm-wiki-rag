@@ -217,6 +217,7 @@ public class IngestPipeline {
                 - Today's date: %s
                 - Original title: %s
                 - type must be one of: source, concept, entity, synthesis, question, index, overview, log
+                - Directory mapping (must follow exactly): concept→wiki/concepts/, entity→wiki/entities/, synthesis→wiki/synthesis/, question→wiki/questions/, source→wiki/sources/, index→wiki/, overview→wiki/, log→wiki/
 
                 Generate the wiki pages now:
                 """.formatted(analysisJson, sourceText.length() > 8000 ? sourceText.substring(0, 8000) : sourceText,
