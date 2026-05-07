@@ -43,9 +43,10 @@ public class IngestPipelineServiceImpl implements IngestTaskHandler {
     private static final String KEY_API_KEY_CIPHER = "llm.api_key_cipher";
     private static final String KEY_MODEL = "llm.model";
     private static final String KEY_TEMPERATURE = "llm.temperature";
+    private static final String KEY_OUTPUT_LANGUAGE = "llm.output_language";
 
     private static final List<String> SETTING_KEYS = List.of(
-            KEY_PROVIDER, KEY_BASE_URL, KEY_API_KEY_CIPHER, KEY_MODEL, KEY_TEMPERATURE
+            KEY_PROVIDER, KEY_BASE_URL, KEY_API_KEY_CIPHER, KEY_MODEL, KEY_TEMPERATURE, KEY_OUTPUT_LANGUAGE
     );
 
     private final IngestPipeline ingestPipeline;
@@ -90,17 +91,20 @@ public class IngestPipelineServiceImpl implements IngestTaskHandler {
         }
 
         // ---- Build LLM request template ----
+        Map<String, String> settings = loadSettings();
         LlmChatRequest llmTemplate;
         try {
-            llmTemplate = buildLlmTemplate();
+            llmTemplate = buildLlmTemplate(settings);
         } catch (Exception e) {
             log.error("IngestPipeline taskId={} failed to build LLM template: {}", task.getTaskId(), e.getMessage());
             throw e;
         }
 
+        String outputLanguage = firstText(settings.get(KEY_OUTPUT_LANGUAGE), "follow source language");
+
         // ---- Run two-phase pipeline ----
         try {
-            ingestPipeline.run(context, vault, source, llmTemplate);
+            ingestPipeline.run(context, vault, source, llmTemplate, outputLanguage);
         } catch (Exception e) {
             log.error("IngestPipeline taskId={} failed at stage pipeline.run: {}", task.getTaskId(), e.getMessage());
             throw e;
@@ -114,8 +118,7 @@ public class IngestPipelineServiceImpl implements IngestTaskHandler {
         log.info("IngestPipeline completed taskId={}", task.getTaskId());
     }
 
-    private LlmChatRequest buildLlmTemplate() {
-        Map<String, String> settings = loadSettings();
+    private LlmChatRequest buildLlmTemplate(Map<String, String> settings) {
         String cipher = settings.get(KEY_API_KEY_CIPHER);
         String apiKey = StringUtils.hasText(cipher) ? secretCipher.decrypt(cipher) : null;
         if (!StringUtils.hasText(apiKey)) {
