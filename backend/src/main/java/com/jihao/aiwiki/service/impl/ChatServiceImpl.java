@@ -18,12 +18,10 @@ import com.jihao.aiwiki.entity.AppSettingDO;
 import com.jihao.aiwiki.entity.ChatMessageDO;
 import com.jihao.aiwiki.entity.ChatSessionDO;
 import com.jihao.aiwiki.entity.VaultProjectDO;
-import com.jihao.aiwiki.entity.WikiPageDO;
 import com.jihao.aiwiki.mapper.AppSettingMapper;
 import com.jihao.aiwiki.mapper.ChatMessageMapper;
 import com.jihao.aiwiki.mapper.ChatSessionMapper;
 import com.jihao.aiwiki.mapper.VaultProjectMapper;
-import com.jihao.aiwiki.mapper.WikiPageMapper;
 import com.jihao.aiwiki.service.ChatService;
 import com.jihao.aiwiki.service.SearchService;
 import com.jihao.aiwiki.vo.chat.ChatMessageVO;
@@ -71,7 +69,6 @@ public class ChatServiceImpl implements ChatService {
     private final ChatSessionMapper sessionMapper;
     private final ChatMessageMapper messageMapper;
     private final VaultProjectMapper vaultMapper;
-    private final WikiPageMapper wikiPageMapper;
     private final AppSettingMapper appSettingMapper;
     private final SecretCipher secretCipher;
     private final LlmClient llmClient;
@@ -82,7 +79,6 @@ public class ChatServiceImpl implements ChatService {
     public ChatServiceImpl(ChatSessionMapper sessionMapper,
                            ChatMessageMapper messageMapper,
                            VaultProjectMapper vaultMapper,
-                           WikiPageMapper wikiPageMapper,
                            AppSettingMapper appSettingMapper,
                            SecretCipher secretCipher,
                            LlmClient llmClient,
@@ -92,7 +88,6 @@ public class ChatServiceImpl implements ChatService {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.vaultMapper = vaultMapper;
-        this.wikiPageMapper = wikiPageMapper;
         this.appSettingMapper = appSettingMapper;
         this.secretCipher = secretCipher;
         this.llmClient = llmClient;
@@ -144,6 +139,9 @@ public class ChatServiceImpl implements ChatService {
         });
     }
 
+    /** 最多携带的历史轮数（每轮 = 1 user + 1 assistant，共 2 条消息） */
+    private static final int MAX_HISTORY_TURNS = 5;
+
     private void doStreamChat(ChatStreamDTO dto, SseEmitter emitter) throws IOException {
         // ---- Search context ----
         ContextBudgetService.ContextAssemblyResult ctx =
@@ -159,6 +157,11 @@ public class ChatServiceImpl implements ChatService {
         // Send reference event
         emitter.send(SseEmitter.event().name("reference").data(toJson(refs)));
 
+        // Load conversation history (exclude current question, keep last N turns)
+        List<ChatMessageDO> history = messageMapper.selectBySessionId(dto.getSessionId());
+        int historyFrom = Math.max(0, history.size() - MAX_HISTORY_TURNS * 2);
+        List<ChatMessageDO> recentHistory = history.subList(historyFrom, history.size());
+
         // Save user message
         ChatMessageDO userMsg = ChatMessageDO.builder()
                 .sessionId(dto.getSessionId())
@@ -168,7 +171,7 @@ public class ChatServiceImpl implements ChatService {
         messageMapper.insert(userMsg);
 
         // Build LLM request
-        LlmChatRequest llmReq = buildLlmRequest(dto.getQuestion(), ctx.context());
+        LlmChatRequest llmReq = buildLlmRequest(dto.getQuestion(), ctx.context(), recentHistory);
         StringBuilder fullAnswer = new StringBuilder();
 
         // Stream delta events
@@ -248,7 +251,8 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private LlmChatRequest buildLlmRequest(String question, String context) {
+    private LlmChatRequest buildLlmRequest(String question, String context,
+                                            List<ChatMessageDO> history) {
         Map<String, String> settings = loadSettings();
         String cipher = settings.get(KEY_API_KEY_CIPHER);
         String apiKey = StringUtils.hasText(cipher) ? secretCipher.decrypt(cipher) : null;
@@ -263,7 +267,20 @@ public class ChatServiceImpl implements ChatService {
                 3. 只有在上下文完全没有任何相关信息时，才说"上下文中未找到相关内容"，并建议用户导入更多资料。
                 4. 用中文回答。
                 """;
-        String userPrompt = "## Wiki Context\n" + context + "\n\n## Question\n" + question;
+
+        List<LlmMessage> messages = new ArrayList<>();
+        messages.add(new LlmMessage("system", systemPrompt));
+
+        // Inject wiki context into the first user turn of this round
+        String contextBlock = context != null && !context.isBlank()
+                ? "## Wiki Context\n" + context + "\n\n" : "";
+
+        // Append conversation history turns
+        for (ChatMessageDO msg : history) {
+            messages.add(new LlmMessage(msg.getRole(), msg.getContent()));
+        }
+
+        messages.add(new LlmMessage("user", contextBlock + "## Question\n" + question));
 
         return LlmChatRequest.builder()
                 .provider(firstText(settings.get(KEY_PROVIDER), "openai"))
@@ -271,10 +288,7 @@ public class ChatServiceImpl implements ChatService {
                 .apiKey(apiKey)
                 .model(firstText(settings.get(KEY_MODEL), "gpt-4o-mini"))
                 .temperature(parseDecimal(settings.get(KEY_TEMPERATURE), BigDecimal.valueOf(0.3)))
-                .messages(List.of(
-                        new LlmMessage("system", systemPrompt),
-                        new LlmMessage("user", userPrompt)
-                ))
+                .messages(messages)
                 .stream(true)
                 .build();
     }

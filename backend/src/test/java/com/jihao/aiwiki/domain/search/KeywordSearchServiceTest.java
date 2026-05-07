@@ -66,6 +66,44 @@ class KeywordSearchServiceTest {
         assertThat(results.get(0).getSnippet()).contains("keyword");
     }
 
+    // ---- CJK bigram tests ----
+
+    @Test
+    void tokenize_chineseNoSpaces_producesBigrams() {
+        String[] tokens = service.tokenize("连接池配置");
+        // should contain bigrams "连接", "接池", "池配", "配置"
+        assertThat(tokens).contains("连接", "接池", "池配", "配置");
+    }
+
+    @Test
+    void tokenize_stopwordFiltered() {
+        String[] tokens = service.tokenize("是什么");
+        assertThat(tokens).isEmpty();
+    }
+
+    @Test
+    void tokenize_mixedQueryWithSpace() {
+        String[] tokens = service.tokenize("Hermes 是什么");
+        // "是什么" is stopword, only "hermes" survives
+        assertThat(tokens).contains("hermes");
+        assertThat(tokens).doesNotContain("是什么");
+    }
+
+    @Test
+    void search_chineseQueryNoSpaces_matchesBodyByBigram() {
+        // body contains "连接池" but not the full phrase "连接池配置"
+        var pages = List.of(page("wiki/a.md", "数据库", "连接池的配置方法"));
+        var results = service.search(pages, "连接池配置");
+        assertThat(results).isNotEmpty();
+    }
+
+    @Test
+    void search_chineseQueryNoSpaces_noFalsePositive() {
+        var pages = List.of(page("wiki/a.md", "网络协议", "完全无关的内容"));
+        var results = service.search(pages, "连接池配置");
+        assertThat(results).isEmpty();
+    }
+
     private ScoredPage page(String path, String title, String body) {
         return new ScoredPage(path, title, 0, null, body, "concept");
     }

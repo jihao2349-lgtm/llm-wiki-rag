@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -25,17 +26,49 @@ public class KeywordSearchService {
     );
 
     /**
+     * 将查询字符串分词，支持 CJK bigram 展开。
+     * 对含 CJK 字符且长度大于 2 的词：生成重叠 bigram + 单字（非停用词）+ 原词，
+     * 其余词直接保留。停用词整体跳过。
+     */
+    String[] tokenize(String query) {
+        String[] parts = query.toLowerCase().split("[\\s，,。.！!？?]+");
+        Set<String> tokens = new LinkedHashSet<>();
+        for (String word : parts) {
+            if (word.isEmpty() || STOPWORDS.contains(word)) continue;
+            if (hasCjk(word) && word.length() > 2) {
+                // bigrams: "连接池" → ["连接", "接池"]
+                for (int i = 0; i < word.length() - 1; i++) {
+                    tokens.add(word.substring(i, i + 2));
+                }
+                // individual chars (non-stopword)
+                for (int i = 0; i < word.length(); i++) {
+                    String ch = word.substring(i, i + 1);
+                    if (!STOPWORDS.contains(ch)) tokens.add(ch);
+                }
+                tokens.add(word);
+            } else {
+                tokens.add(word);
+            }
+        }
+        return tokens.toArray(new String[0]);
+    }
+
+    private boolean hasCjk(String s) {
+        return s.chars().anyMatch(c -> (c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf));
+    }
+
+    /**
      * 对候选页面列表按关键词评分并排序，过滤零分结果。
      *
      * @param pages 候选页面列表（含 path、title、body、type）
-     * @param query 搜索关键词，支持空格分隔多词
+     * @param query 搜索关键词，支持空格分隔多词及中文连续串
      * @return 按分数降序排列的结果列表（score &gt; 0）
      */
     public List<ScoredPage> search(List<ScoredPage> pages, String query) {
         if (query == null || query.isBlank()) {
             return List.of();
         }
-        String[] words = query.toLowerCase().split("[\\s，,。.！!？?]+");
+        String[] words = tokenize(query);
 
         List<ScoredPage> results = new ArrayList<>();
         for (ScoredPage page : pages) {
@@ -51,25 +84,20 @@ public class KeywordSearchService {
     }
 
     /**
-     * 计算单个页面的相关分数，跳过停用词。
-     *
-     * @param page      候选页面
-     * @param words     关键词拆分后的词组
-     * @param fullQuery 完整查询字符串（小写）
-     * @return 分数，0 表示不相关
+     * 计算单个页面的相关分数。词列表已由 tokenize 完成停用词过滤和 CJK bigram 展开。
      */
     private int calcScore(ScoredPage page, String[] words, String fullQuery) {
         int score = 0;
         String titleLower = page.getTitle() == null ? "" : page.getTitle().toLowerCase();
         String bodyLower = page.getBody() == null ? "" : page.getBody().toLowerCase();
 
-        // 标题完全匹配
+        // 标题完全匹配（用原始 query）
         if (titleLower.equals(fullQuery)) {
             score += 100;
         }
 
         for (String word : words) {
-            if (word.isEmpty() || STOPWORDS.contains(word)) continue;
+            if (word.isEmpty()) continue;
             // 标题包含词
             if (titleLower.contains(word)) score += 50;
             // 文件名包含词
@@ -90,17 +118,13 @@ public class KeywordSearchService {
     }
 
     /**
-     * 从正文中提取含关键词（非停用词）的摘要片段。
-     *
-     * @param body  正文内容
-     * @param words 关键词数组
-     * @return 摘要片段（最长 200 字符）
+     * 从正文中提取含关键词的摘要片段。
      */
     private String extractSnippet(String body, String[] words) {
         if (body == null || body.isEmpty()) return "";
         String lower = body.toLowerCase();
         for (String word : words) {
-            if (STOPWORDS.contains(word)) continue;
+            if (word.isEmpty()) continue;
             int idx = lower.indexOf(word);
             if (idx >= 0) {
                 int start = Math.max(0, idx - 60);
