@@ -9,7 +9,8 @@ const props = defineProps<{
 }>()
 
 const tagType = computed(() => {
-  if (["Pending", "Processing", "Done", "Failed", "Cancelled"].includes(props.status)) {
+  const taskStatuses: TaskStatus[] = ["Pending", "Processing", "Done", "Failed", "Cancelled", "ManualCheck"]
+  if (taskStatuses.includes(props.status as TaskStatus)) {
     return taskStatusType(props.status as TaskStatus)
   }
 
@@ -17,7 +18,8 @@ const tagType = computed(() => {
 })
 
 const label = computed(() => {
-  if (["Pending", "Processing", "Done", "Failed", "Cancelled"].includes(props.status)) {
+  const taskStatuses: TaskStatus[] = ["Pending", "Processing", "Done", "Failed", "Cancelled", "ManualCheck"]
+  if (taskStatuses.includes(props.status as TaskStatus)) {
     return taskStatusLabel(props.status as TaskStatus)
   }
 

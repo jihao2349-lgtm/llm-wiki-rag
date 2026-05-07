@@ -156,6 +156,7 @@ function mapTaskStatus(value: string): TaskStatus {
   if (normalized === "DONE" || normalized === "SUCCESS") return "Done"
   if (normalized === "FAILED" || normalized === "ERROR") return "Failed"
   if (normalized === "CANCELLED" || normalized === "CANCELED") return "Cancelled"
+  if (normalized === "MANUAL_CHECK" || normalized === "MANUALCHECK") return "ManualCheck"
   return "Pending"
 }
 
@@ -402,6 +403,9 @@ export const taskApi = {
     events.addEventListener("progress", (event) => onTask(mapTask(JSON.parse(event.data) as unknown)))
     events.onerror = () => onError()
     return () => events.close()
+  },
+  clear(vaultId = 1) {
+    return request<unknown>("/api/tasks/clear", { method: "DELETE" }, { vaultId })
   },
 }
 

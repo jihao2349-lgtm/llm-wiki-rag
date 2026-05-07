@@ -10,9 +10,13 @@ import type { IngestTask } from "../types"
 
 const loading = ref(true)
 const actionLoading = ref("")
+const clearLoading = ref(false)
 const errorMessage = ref("")
 const tasks = ref<IngestTask[]>([])
 const failedTasks = computed(() => tasks.value.filter((task) => task.status === "Failed").length)
+const terminatedTasks = computed(() =>
+  tasks.value.filter((t) => t.status === "Cancelled" || t.status === "Failed" || t.status === "ManualCheck").length
+)
 let closeTaskStream: (() => void) | undefined
 
 async function loadTasks() {
@@ -60,6 +64,19 @@ async function cancelTask(taskId: string) {
   }
 }
 
+async function clearTerminated() {
+  clearLoading.value = true
+  errorMessage.value = ""
+  try {
+    await taskApi.clear()
+    await loadTasks()
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    clearLoading.value = false
+  }
+}
+
 onMounted(() => {
   void loadTasks()
   closeTaskStream = taskApi.stream(mergeTask, () => {
@@ -84,11 +101,17 @@ onBeforeUnmount(() => {
           <h2>摄入队列</h2>
           <p>任务默认按 Vault 串行执行，避免多个任务同时写入。</p>
         </div>
-        <NButton secondary :disabled="failedTasks === 0" :loading="loading" @click="loadTasks">
+        <NButton
+          secondary
+          type="error"
+          :disabled="terminatedTasks === 0"
+          :loading="clearLoading"
+          @click="clearTerminated"
+        >
           <template #icon>
-            <AppIcon name="refresh" />
+            <AppIcon name="trash" />
           </template>
-          重试失败 ({{ failedTasks }})
+          清除历史 ({{ terminatedTasks }})
         </NButton>
       </div>
 
@@ -134,7 +157,7 @@ onBeforeUnmount(() => {
               size="small"
               secondary
               :loading="actionLoading === task.taskId"
-              :disabled="task.status !== 'Failed'"
+              :disabled="!['Failed', 'ManualCheck', 'Cancelled'].includes(task.status)"
               @click="retryTask(task.taskId)"
             >
               <template #icon>

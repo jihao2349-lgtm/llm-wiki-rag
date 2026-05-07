@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -99,5 +100,17 @@ public class IngestTaskController {
     @Operation(summary = "订阅任务进度")
     public SseEmitter streamTasks() {
         return ingestTaskService.streamTasks();
+    }
+
+    /**
+     * 清除已终止任务（CANCELLED / FAILED / MANUAL_CHECK）。
+     *
+     * @param vaultId Vault ID
+     * @return 删除条数
+     */
+    @DeleteMapping("/clear")
+    @Operation(summary = "清除已终止任务")
+    public ApiResponse<Integer> clearTerminated(@RequestParam Long vaultId) {
+        return ApiResponse.success(ingestTaskService.clearTerminated(vaultId));
     }
 }

@@ -32,8 +32,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     /** Chat completions path */
     private static final String CHAT_COMPLETIONS_PATH = "/chat/completions";
 
-    /** HTTP request timeout */
-    private static final Duration TIMEOUT = Duration.ofSeconds(60);
+    /** HTTP request timeout — ingest prompts can be large, allow 5 minutes */
+    private static final Duration TIMEOUT = Duration.ofSeconds(300);
 
     /** HTTP client */
     private final HttpClient httpClient;
@@ -71,7 +71,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.LLM_CALL_FAILED, "llm call failed");
+            throw new BusinessException(ErrorCode.LLM_CALL_FAILED,
+                    "llm call failed: " + exception.getClass().getSimpleName() + ": " + exception.getMessage());
         }
     }
 
@@ -92,7 +93,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.LLM_CALL_FAILED, "llm stream failed");
+            throw new BusinessException(ErrorCode.LLM_CALL_FAILED,
+                    "llm stream failed: " + exception.getClass().getSimpleName() + ": " + exception.getMessage());
         }
     }
 

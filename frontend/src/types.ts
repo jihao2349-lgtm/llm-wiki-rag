@@ -43,7 +43,7 @@ export type Modality = "text" | "image" | "audio" | "video" | "mixed"
 
 export type SourceStatus = "已摄入" | "解析中" | "待摄入" | "失败"
 
-export type TaskStatus = "Pending" | "Processing" | "Done" | "Failed" | "Cancelled"
+export type TaskStatus = "Pending" | "Processing" | "Done" | "Failed" | "Cancelled" | "ManualCheck"
 
 export interface VaultProject {
   id?: number

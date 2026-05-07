@@ -65,4 +65,12 @@ public interface IngestTaskService {
      * 恢复启动前未完成任务。
      */
     void recoverUnfinishedTasks();
+
+    /**
+     * 清除已终止任务（CANCELLED / FAILED / MANUAL_CHECK）。
+     *
+     * @param vaultId Vault ID
+     * @return 删除条数
+     */
+    int clearTerminated(Long vaultId);
 }
