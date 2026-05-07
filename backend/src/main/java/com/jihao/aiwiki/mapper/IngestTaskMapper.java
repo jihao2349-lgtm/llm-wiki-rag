@@ -349,4 +349,19 @@ public interface IngestTaskMapper {
             WHERE task_id = #{taskId} AND status IN ('FAILED', 'MANUAL_CHECK', 'CANCELLED')
             """)
     int retryTask(@Param("taskId") String taskId);
+
+    /**
+     * 删除已终止任务（CANCELLED / FAILED / MANUAL_CHECK）。
+     *
+     * @param vaultId Vault ID，null 时删除所有 Vault
+     * @return 影响行数
+     */
+    @org.apache.ibatis.annotations.Delete("""
+            <script>
+            DELETE FROM ingest_task
+            WHERE status IN ('CANCELLED', 'FAILED', 'MANUAL_CHECK')
+            <if test="vaultId != null">AND vault_id = #{vaultId}</if>
+            </script>
+            """)
+    int deleteTerminated(@Param("vaultId") Long vaultId);
 }

@@ -11,6 +11,7 @@ export function taskStatusType(status: TaskStatus) {
   if (status === "Done") return "success"
   if (status === "Processing") return "info"
   if (status === "Failed" || status === "Cancelled") return "error"
+  if (status === "ManualCheck") return "warning"
   return "warning"
 }
 
@@ -21,9 +22,10 @@ export function taskStatusLabel(status: TaskStatus) {
     Done: "完成",
     Failed: "失败",
     Cancelled: "已取消",
+    ManualCheck: "需人工检查",
   }
 
-  return labels[status]
+  return labels[status] ?? status
 }
 
 export function modalityIcon(modality: Modality) {

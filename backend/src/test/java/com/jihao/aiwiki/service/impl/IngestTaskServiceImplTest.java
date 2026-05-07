@@ -258,5 +258,20 @@ class IngestTaskServiceImplTest {
             task.setStage(IngestTaskStage.PENDING.name());
             return 1;
         }
+
+        @Override
+        public int deleteTerminated(Long vaultId) {
+            int count = 0;
+            java.util.Iterator<IngestTaskDO> it = tasks.values().iterator();
+            while (it.hasNext()) {
+                IngestTaskDO t = it.next();
+                if (java.util.List.of("CANCELLED", "FAILED", "MANUAL_CHECK").contains(t.getStatus())
+                        && (vaultId == null || vaultId.equals(t.getVaultId()))) {
+                    it.remove();
+                    count++;
+                }
+            }
+            return count;
+        }
     }
 }

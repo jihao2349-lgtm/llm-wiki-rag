@@ -3,8 +3,11 @@ package com.jihao.aiwiki.controller;
 import com.jihao.aiwiki.common.ApiResponse;
 import com.jihao.aiwiki.common.PageResult;
 import com.jihao.aiwiki.dto.source.SourceUrlImportDTO;
+import com.jihao.aiwiki.dto.task.IngestTaskCreateRequest;
+import com.jihao.aiwiki.service.IngestTaskService;
 import com.jihao.aiwiki.service.SourceDocumentService;
 import com.jihao.aiwiki.vo.source.SourceDocumentVO;
+import com.jihao.aiwiki.vo.task.IngestTaskVO;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
@@ -22,9 +25,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class SourceController {
 
     private final ObjectProvider<SourceDocumentService> sourceServiceProvider;
+    private final IngestTaskService ingestTaskService;
 
-    public SourceController(ObjectProvider<SourceDocumentService> sourceServiceProvider) {
+    public SourceController(ObjectProvider<SourceDocumentService> sourceServiceProvider,
+                            IngestTaskService ingestTaskService) {
         this.sourceServiceProvider = sourceServiceProvider;
+        this.ingestTaskService = ingestTaskService;
     }
 
     private SourceDocumentService svc() {
@@ -86,5 +92,17 @@ public class SourceController {
     @PostMapping("/{id}/parse")
     public ApiResponse<SourceDocumentVO> reparse(@PathVariable Long id) {
         return ApiResponse.success(svc().reparse(id));
+    }
+
+    /**
+     * 手动触发 AI 摄入（创建摄入任务）。
+     */
+    @PostMapping("/{id}/ingest")
+    public ApiResponse<IngestTaskVO> ingest(@PathVariable Long id) {
+        SourceDocumentVO source = svc().detail(id);
+        IngestTaskCreateRequest req = new IngestTaskCreateRequest();
+        req.setVaultId(source.getVaultId());
+        req.setSourceId(id);
+        return ApiResponse.success(ingestTaskService.createTask(req));
     }
 }

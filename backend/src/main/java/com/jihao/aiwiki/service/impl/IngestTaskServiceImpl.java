@@ -166,6 +166,12 @@ public class IngestTaskServiceImpl implements IngestTaskService, IngestTaskProgr
     }
 
     @Override
+    public int clearTerminated(Long vaultId) {
+        requireMapper();
+        return ingestTaskMapper.deleteTerminated(vaultId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public IngestTaskVO cancelTask(String taskId) {
         IngestTaskDO task = requireTask(taskId);

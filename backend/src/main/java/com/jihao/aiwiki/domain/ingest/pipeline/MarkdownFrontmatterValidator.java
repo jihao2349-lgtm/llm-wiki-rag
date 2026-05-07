@@ -2,8 +2,6 @@ package com.jihao.aiwiki.domain.ingest.pipeline;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
-
 /**
  * Markdown frontmatter 校验器，用于 FILE block 写入前验证。
  *
@@ -12,10 +10,6 @@ import java.util.Set;
  */
 @Component
 public class MarkdownFrontmatterValidator {
-
-    private static final Set<String> ALLOWED_TYPES = Set.of(
-            "source", "concept", "entity", "synthesis", "question", "index", "overview", "log"
-    );
 
     /**
      * 校验 FILE block 的路径安全性。
@@ -52,10 +46,6 @@ public class MarkdownFrontmatterValidator {
         if (!containsField(fm, "sources")) return "frontmatter missing field: sources";
         if (!containsField(fm, "updated")) return "frontmatter missing field: updated";
 
-        String type = extractField(fm, "type");
-        if (type != null && !ALLOWED_TYPES.contains(type.trim().toLowerCase())) {
-            return "frontmatter type not allowed: " + type;
-        }
         return null;
     }
 
@@ -63,12 +53,5 @@ public class MarkdownFrontmatterValidator {
         return fm.contains("\n" + field + ":") || fm.startsWith(field + ":");
     }
 
-    private String extractField(String fm, String field) {
-        for (String line : fm.split("\n")) {
-            if (line.startsWith(field + ":")) {
-                return line.substring(field.length() + 1).trim();
-            }
-        }
-        return null;
-    }
+
 }

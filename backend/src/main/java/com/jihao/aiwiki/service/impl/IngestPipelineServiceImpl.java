@@ -72,7 +72,7 @@ public class IngestPipelineServiceImpl implements IngestTaskHandler {
     @Override
     public void handle(IngestTaskRunContext context) throws Exception {
         IngestTaskDO task = context.getTask();
-        log.info("IngestPipeline starting taskId={} sourceId={}", task.getTaskId(), task.getSourceId());
+        log.info("IngestPipeline starting taskId={} sourceId={} vaultId={}", task.getTaskId(), task.getSourceId(), task.getVaultId());
 
         // ---- Load source ----
         context.updateProgress(IngestTaskStage.PARSING, 5);
@@ -90,10 +90,21 @@ public class IngestPipelineServiceImpl implements IngestTaskHandler {
         }
 
         // ---- Build LLM request template ----
-        LlmChatRequest llmTemplate = buildLlmTemplate();
+        LlmChatRequest llmTemplate;
+        try {
+            llmTemplate = buildLlmTemplate();
+        } catch (Exception e) {
+            log.error("IngestPipeline taskId={} failed to build LLM template: {}", task.getTaskId(), e.getMessage());
+            throw e;
+        }
 
         // ---- Run two-phase pipeline ----
-        ingestPipeline.run(context, vault, source, llmTemplate);
+        try {
+            ingestPipeline.run(context, vault, source, llmTemplate);
+        } catch (Exception e) {
+            log.error("IngestPipeline taskId={} failed at stage pipeline.run: {}", task.getTaskId(), e.getMessage());
+            throw e;
+        }
 
         // ---- Reindex wiki_page after writing ----
         context.updateProgress(IngestTaskStage.INDEXING, 92);
