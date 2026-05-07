@@ -822,14 +822,33 @@ button {
 
 /* ===== Chat ===== */
 .chat-grid {
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
-  min-height: calc(100dvh - 130px);
+  grid-template-columns: 260px minmax(0, 1fr) 4px 320px;
+  height: calc(100dvh - 130px);
+  gap: 0;
+}
+
+.chat-grid--dragging {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .conversation-list,
-.reference-panel,
-.chat-panel {
+.reference-panel {
   min-height: 100%;
+}
+
+.chat-grid .conversation-list {
+  margin-right: 18px;
+}
+
+.chat-grid .reference-panel {
+  margin-left: 4px;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .conversation-list {
@@ -884,8 +903,14 @@ button {
 }
 
 .message-stream {
-  display: grid;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  padding-bottom: 8px;
+  scroll-behavior: smooth;
 }
 
 .message {
@@ -942,9 +967,10 @@ button {
 }
 
 .composer {
+  flex-shrink: 0;
   display: grid;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 0;
   padding-top: 18px;
   border-top: 1px solid var(--color-border);
 }

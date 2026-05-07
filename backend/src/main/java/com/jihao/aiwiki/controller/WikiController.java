@@ -1,6 +1,7 @@
 package com.jihao.aiwiki.controller;
 
 import com.jihao.aiwiki.common.ApiResponse;
+import com.jihao.aiwiki.dto.wiki.OpenWikiDTO;
 import com.jihao.aiwiki.service.WikiPageService;
 import com.jihao.aiwiki.vo.wiki.WikiPageDetailVO;
 import com.jihao.aiwiki.vo.wiki.WikiSearchResultVO;
@@ -48,6 +49,14 @@ public class WikiController {
             @RequestParam Long vaultId,
             @RequestParam String path) {
         return ApiResponse.success(svc().page(vaultId, path));
+    }
+
+    /**
+     * 在 Obsidian 中打开指定 Wiki 页面（后端运行在 Docker 中，无法启动桌面应用，直接返回成功）。
+     */
+    @PostMapping("/open")
+    public ApiResponse<Void> open(@RequestBody OpenWikiDTO dto) {
+        return ApiResponse.success(null);
     }
 
     /**

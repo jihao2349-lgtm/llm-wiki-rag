@@ -256,9 +256,12 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.LLM_CALL_FAILED, "LLM API key not configured");
         }
         String systemPrompt = """
-                You are a knowledge base assistant. Answer questions strictly based on the provided wiki context.
-                If the context does not contain sufficient information, clearly state "信息不足以判断" (insufficient information to determine).
-                When referencing information, use format: [1] wiki/path/to/page.md
+                你是一个知识库助手，根据提供的 Wiki 上下文回答用户问题。
+                规则：
+                1. 优先使用上下文中的信息作答；即使问题措辞与上下文略有出入（如拼写差异、缩写），也应尽量推断并给出有用的回答。
+                2. 引用信息时使用格式：[序号] wiki/路径/页面.md
+                3. 只有在上下文完全没有任何相关信息时，才说"上下文中未找到相关内容"，并建议用户导入更多资料。
+                4. 用中文回答。
                 """;
         String userPrompt = "## Wiki Context\n" + context + "\n\n## Question\n" + question;
 

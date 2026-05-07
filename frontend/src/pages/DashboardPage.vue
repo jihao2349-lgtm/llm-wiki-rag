@@ -11,14 +11,16 @@ import {
   NTag,
   type DataTableColumns,
 } from "naive-ui"
-import { h, onMounted, ref } from "vue"
+import { h, inject, onMounted, ref } from "vue"
 import AppIcon from "../components/AppIcon.vue"
 import MetricCard from "../components/MetricCard.vue"
 import StatusTag from "../components/StatusTag.vue"
 import { dashboardApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
-import type { IconName, IngestTask, Metric, SourceDocument, VaultProject } from "../types"
+import type { IconName, IngestTask, Metric, PageKey, SourceDocument, VaultProject } from "../types"
+
+const navigateTo = inject<(page: PageKey) => void>('navigateTo')
 
 const loading = ref(true)
 const errorMessage = ref("")
@@ -124,7 +126,7 @@ onMounted(loadOverview)
     <div class="two-column">
       <NCard title="知识生产链路">
         <template #header-extra>
-          <NButton secondary>
+          <NButton secondary @click="navigateTo?.('tasks')">
             <template #icon>
               <AppIcon name="play" />
             </template>
@@ -192,7 +194,7 @@ onMounted(loadOverview)
             </template>
             重建索引
           </NButton>
-          <NButton type="primary">
+          <NButton type="primary" @click="navigateTo?.('chat')">
             <template #icon>
               <AppIcon name="message" />
             </template>

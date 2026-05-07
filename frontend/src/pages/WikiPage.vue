@@ -143,13 +143,9 @@ async function searchPages() {
   }
 }
 
-async function openInObsidian() {
+function openInObsidian() {
   if (!selectedPage.value) return
-  try {
-    await wikiApi.open(selectedPage.value.path)
-  } catch (error) {
-    errorMessage.value = toErrorMessage(error)
-  }
+  window.open('obsidian://open?file=' + encodeURIComponent(selectedPage.value.path))
 }
 
 watch(filterKeyword, (value, oldValue) => {

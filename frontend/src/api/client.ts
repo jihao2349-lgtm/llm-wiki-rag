@@ -459,10 +459,16 @@ export const chatApi = {
     payload: { vaultId?: number; sessionId: string; question: string; maxReferences: number },
     onEvent: (event: { event: string; data: unknown }) => void,
   ) {
+    const body = {
+      vaultId: payload.vaultId ?? 1,
+      sessionId: Number(payload.sessionId),
+      question: payload.question,
+      maxReferences: payload.maxReferences,
+    }
     const response = await fetch(buildUrl("/api/chat/stream"), {
       method: "POST",
       headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     })
 
     if (!response.ok || !response.body) throw new ApiError(response.statusText, response.status)
@@ -485,7 +491,12 @@ export const chatApi = {
           .map((line) => line.slice(5).trim())
           .join("\n")
         if (!data) return
-        onEvent({ event, data: JSON.parse(data) as unknown })
+        const parsed = JSON.parse(data) as unknown
+        const mapped =
+          event === "reference" && Array.isArray(parsed)
+            ? parsed.map((item, idx) => mapReference({ ...(isRecord(item) ? item : {}), id: idx + 1 }))
+            : parsed
+        onEvent({ event, data: mapped })
       })
     }
   },

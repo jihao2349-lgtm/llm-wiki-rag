@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 关键词搜索评分服务，对 Wiki 页面按关键词相关度打分并排序。
@@ -14,6 +15,14 @@ import java.util.List;
  */
 @Component
 public class KeywordSearchService {
+
+    /** 中文停用词：高频功能词/疑问词，无实际检索价值，跳过评分 */
+    private static final Set<String> STOPWORDS = Set.of(
+            "是", "什么", "是什么", "的", "了", "吗", "呢", "吧", "啊",
+            "在", "有", "和", "与", "或", "这", "那", "它", "我", "你", "他", "她",
+            "们", "一", "个", "怎么", "如何", "为什么", "哪些", "哪个", "么", "嘛",
+            "这个", "那个", "一个", "可以", "能", "会", "请问", "告诉", "介绍"
+    );
 
     /**
      * 对候选页面列表按关键词评分并排序，过滤零分结果。
@@ -42,10 +51,10 @@ public class KeywordSearchService {
     }
 
     /**
-     * 计算单个页面的相关分数。
+     * 计算单个页面的相关分数，跳过停用词。
      *
-     * @param page  候选页面
-     * @param words 关键词拆分后的词组
+     * @param page      候选页面
+     * @param words     关键词拆分后的词组
      * @param fullQuery 完整查询字符串（小写）
      * @return 分数，0 表示不相关
      */
@@ -60,7 +69,7 @@ public class KeywordSearchService {
         }
 
         for (String word : words) {
-            if (word.isEmpty()) continue;
+            if (word.isEmpty() || STOPWORDS.contains(word)) continue;
             // 标题包含词
             if (titleLower.contains(word)) score += 50;
             // 文件名包含词
@@ -81,7 +90,7 @@ public class KeywordSearchService {
     }
 
     /**
-     * 从正文中提取含关键词的摘要片段。
+     * 从正文中提取含关键词（非停用词）的摘要片段。
      *
      * @param body  正文内容
      * @param words 关键词数组
@@ -91,6 +100,7 @@ public class KeywordSearchService {
         if (body == null || body.isEmpty()) return "";
         String lower = body.toLowerCase();
         for (String word : words) {
+            if (STOPWORDS.contains(word)) continue;
             int idx = lower.indexOf(word);
             if (idx >= 0) {
                 int start = Math.max(0, idx - 60);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, provide, ref } from "vue"
 import { NConfigProvider, darkTheme, type GlobalThemeOverrides } from "naive-ui"
 import AppShell from "./components/AppShell.vue"
 import ApiConsolePage from "./pages/ApiConsolePage.vue"
@@ -12,6 +12,8 @@ import WikiPage from "./pages/WikiPage.vue"
 import type { PageKey } from "./types"
 
 const activePage = ref<PageKey>("dashboard")
+
+provide('navigateTo', (page: PageKey) => { activePage.value = page })
 
 const pageTitles: Record<PageKey, string> = {
   dashboard: "工作台",

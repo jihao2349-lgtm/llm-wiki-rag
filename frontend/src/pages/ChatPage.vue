@@ -1,10 +1,56 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, inject, nextTick, onMounted, onUnmounted, ref } from "vue"
 import { NAlert, NButton, NDropdown, NEmpty, NInput, NSpace, NSpin, NTag } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
-import { chatApi, wikiApi } from "../api/client"
+import { chatApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
-import type { ChatMessage, ChatReference, ChatSession } from "../types"
+import type { ChatMessage, ChatReference, ChatSession, PageKey } from "../types"
+
+const navigateTo = inject<(page: PageKey) => void>('navigateTo')
+
+// ---- Resizable reference panel ----
+const REF_MIN = 200
+const REF_MAX = 600
+const refPanelWidth = ref(320)
+const isDragging = ref(false)
+
+function onDividerMousedown(e: MouseEvent) {
+  e.preventDefault()
+  isDragging.value = true
+  const startX = e.clientX
+  const startWidth = refPanelWidth.value
+
+  function onMousemove(ev: MouseEvent) {
+    // dragging left = wider ref panel
+    refPanelWidth.value = Math.min(REF_MAX, Math.max(REF_MIN, startWidth - (ev.clientX - startX)))
+  }
+  function onMouseup() {
+    isDragging.value = false
+    window.removeEventListener('mousemove', onMousemove)
+    window.removeEventListener('mouseup', onMouseup)
+  }
+  window.addEventListener('mousemove', onMousemove)
+  window.addEventListener('mouseup', onMouseup)
+}
+
+onUnmounted(() => { isDragging.value = false })
+
+const messageStreamRef = ref<HTMLElement>()
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (messageStreamRef.value) {
+      messageStreamRef.value.scrollTop = messageStreamRef.value.scrollHeight
+    }
+  })
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    void sendQuestion()
+  }
+}
 
 const loading = ref(true)
 const streaming = ref(false)
@@ -78,28 +124,27 @@ async function sendQuestion() {
   errorMessage.value = ""
   streaming.value = true
 
-  const assistantMessage: ChatMessage = {
-    id: crypto.randomUUID(),
-    role: "assistant",
-    content: "",
-    references: [],
-  }
-
   messages.value.push({ id: crypto.randomUUID(), role: "user", content: question })
-  messages.value.push(assistantMessage)
+  messages.value.push({ id: crypto.randomUUID(), role: "assistant", content: "", references: [] })
+  // Get the reactive proxy reference AFTER push so mutations trigger Vue updates
+  const assistantIdx = messages.value.length - 1
+  scrollToBottom()
 
   try {
     await chatApi.stream(
       { sessionId: activeSessionId.value, question, maxReferences: 5 },
       ({ event, data }) => {
+        const msg = messages.value[assistantIdx]
         if (event === "reference" && Array.isArray(data)) {
-          assistantMessage.references = data as ChatReference[]
+          msg.references = data as ChatReference[]
         }
         if (event === "delta" && typeof data === "object" && data && "content" in data) {
-          assistantMessage.content += String((data as { content: unknown }).content)
+          msg.content += String((data as { content: unknown }).content)
+          scrollToBottom()
         }
         if (event === "done" && typeof data === "object" && data && "messageId" in data) {
-          assistantMessage.id = String((data as { messageId: unknown }).messageId)
+          msg.id = String((data as { messageId: unknown }).messageId)
+          scrollToBottom()
         }
       },
     )
@@ -127,19 +172,19 @@ function handleSaveSelect(key: string | number) {
   if (key === "synthesis" || key === "question") void saveAnswer(key)
 }
 
-async function openReference(ref: ChatReference) {
-  try {
-    await wikiApi.open(ref.path)
-  } catch (error) {
-    errorMessage.value = toErrorMessage(error)
-  }
+function openReference(_ref: ChatReference) {
+  navigateTo?.('wiki')
 }
 
 onMounted(loadSessions)
 </script>
 
 <template>
-  <section class="page-grid chat-grid">
+  <section
+    class="page-grid chat-grid"
+    :style="{ gridTemplateColumns: `260px minmax(0, 1fr) 4px ${refPanelWidth}px` }"
+    :class="{ 'chat-grid--dragging': isDragging }"
+  >
     <NAlert v-if="errorMessage" type="error" :bordered="false">
       {{ errorMessage }}
     </NAlert>
@@ -169,7 +214,7 @@ onMounted(loadSessions)
     </aside>
 
     <main class="section-panel chat-panel">
-      <div class="message-stream">
+      <div ref="messageStreamRef" class="message-stream">
         <NEmpty v-if="messages.length === 0" description="选择一个会话或新建对话后开始提问" />
         <div
           v-for="message in messages"
@@ -201,7 +246,7 @@ onMounted(loadSessions)
       </div>
 
       <div class="composer">
-        <div class="suggested-questions">
+        <div v-if="messages.length === 0" class="suggested-questions">
           <strong>主动推荐</strong>
           <button
             v-for="(suggestion, idx) in chatSuggestions"
@@ -218,8 +263,10 @@ onMounted(loadSessions)
         <NInput
           v-model:value="chatInput"
           type="textarea"
-          :autosize="{ minRows: 3, maxRows: 6 }"
-          placeholder="基于当前 Vault 提问，回答会自动检索 wiki/ 中的相关页面"
+          :autosize="{ minRows: 2, maxRows: 5 }"
+          :disabled="streaming"
+          placeholder="提问… Enter 发送，Shift+Enter 换行"
+          @keydown="handleKeydown"
         />
         <NSpace justify="space-between" :size="8">
           <NButton tertiary>
@@ -251,6 +298,10 @@ onMounted(loadSessions)
         </NSpace>
       </div>
     </main>
+
+    <div class="wiki-divider" @mousedown="onDividerMousedown">
+      <div class="wiki-divider__handle" />
+    </div>
 
     <aside class="section-panel reference-panel">
       <div class="section-toolbar">
