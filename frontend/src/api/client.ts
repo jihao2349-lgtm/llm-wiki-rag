@@ -226,10 +226,11 @@ function mapWikiPage(item: unknown): WikiPage {
 function mapTreeNode(item: unknown): WikiTreeNode {
   const row = isRecord(item) ? item : {}
   const children = Array.isArray(row.children) ? row.children.map(mapTreeNode) : undefined
+  const isDir = row.directory === true || stringValue(row.type) === "directory"
   return {
     path: stringValue(row.path),
     title: stringValue(row.title ?? row.name ?? row.path, "未命名"),
-    type: stringValue(row.type) === "directory" ? "directory" : "file",
+    type: isDir ? "directory" : "file",
     children,
   }
 }

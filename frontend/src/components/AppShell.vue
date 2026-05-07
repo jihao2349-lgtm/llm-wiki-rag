@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h } from "vue"
+import { computed, h, ref } from "vue"
 import {
   NButton,
   NConfigProvider,
@@ -10,6 +10,7 @@ import {
   NLayoutSider,
   NMenu,
   NSpace,
+  NTooltip,
   type GlobalTheme,
   type MenuOption,
 } from "naive-ui"
@@ -27,6 +28,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:activePage": [value: PageKey]
 }>()
+
+const collapsed = ref(false)
 
 const activePageModel = computed({
   get: () => props.activePage,
@@ -54,46 +57,92 @@ const developerOptions: MenuOption[] = [
 <template>
   <NLayout has-sider class="app-shell">
     <NConfigProvider :theme="darkTheme">
-      <NLayoutSider bordered class="app-sider" :width="252" :native-scrollbar="false">
+      <NLayoutSider
+        bordered
+        class="app-sider"
+        :width="252"
+        :collapsed-width="64"
+        :collapsed="collapsed"
+        collapse-mode="width"
+        :native-scrollbar="false"
+        :show-trigger="false"
+      >
         <div class="sider-inner">
-          <div class="brand">
-            <div class="brand-mark">
+          <div class="brand" :class="{ 'brand--collapsed': collapsed }">
+            <div class="brand-mark" @click="collapsed = !collapsed" style="cursor:pointer">
               <AppIcon name="spark" :size="20" />
             </div>
-            <div>
-              <strong>AI Wiki</strong>
-              <span>Obsidian 编译层</span>
+            <template v-if="!collapsed">
+              <div class="brand-text">
+                <strong>AI Wiki</strong>
+                <span>Obsidian 编译层</span>
+              </div>
+              <button class="collapse-btn" @click="collapsed = true" title="收起侧边栏">
+                <AppIcon name="layout" :size="15" />
+              </button>
+            </template>
+          </div>
+
+          <template v-if="!collapsed">
+            <div class="side-section">
+              <span class="side-section-label">主菜单</span>
+              <NMenu
+                v-model:value="activePageModel"
+                :options="navOptions"
+                class="side-menu"
+                :indent="14"
+              />
             </div>
-          </div>
 
-          <div class="side-section">
-            <span class="side-section-label">主菜单</span>
-            <NMenu
-              v-model:value="activePageModel"
-              :options="navOptions"
-              class="side-menu"
-              :indent="14"
-            />
-          </div>
-
-          <div class="side-section">
-            <span class="side-section-label">开发者</span>
-            <NMenu
-              v-model:value="activePageModel"
-              :options="developerOptions"
-              class="side-menu"
-              :indent="14"
-            />
-          </div>
-
-          <div class="vault-summary">
-            <div class="vault-summary__label">
-              <span class="vault-summary__dot" />
-              当前 Vault
+            <div class="side-section">
+              <span class="side-section-label">开发者</span>
+              <NMenu
+                v-model:value="activePageModel"
+                :options="developerOptions"
+                class="side-menu"
+                :indent="14"
+              />
             </div>
-            <strong>{{ vaultProject.name }}</strong>
-            <span>{{ vaultProject.path }}</span>
-          </div>
+
+            <div class="vault-summary">
+              <div class="vault-summary__label">
+                <span class="vault-summary__dot" />
+                当前 Vault
+              </div>
+              <strong>{{ vaultProject.name }}</strong>
+              <span>{{ vaultProject.path }}</span>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="collapsed-nav">
+              <NTooltip v-for="item in navOptions" :key="item.key" placement="right">
+                <template #trigger>
+                  <button
+                    class="collapsed-nav-btn"
+                    :class="{ active: activePageModel === item.key }"
+                    @click="activePageModel = (item.key as PageKey)"
+                  >
+                    <component :is="item.icon!()" />
+                  </button>
+                </template>
+                {{ item.label }}
+              </NTooltip>
+              <div class="collapsed-divider" />
+              <NTooltip v-for="item in developerOptions" :key="item.key" placement="right">
+                <template #trigger>
+                  <button
+                    class="collapsed-nav-btn"
+                    :class="{ active: activePageModel === item.key }"
+                    @click="activePageModel = (item.key as PageKey)"
+                  >
+                    <component :is="item.icon!()" />
+                  </button>
+                </template>
+                {{ item.label }}
+              </NTooltip>
+            </div>
+          </template>
         </div>
       </NLayoutSider>
     </NConfigProvider>
