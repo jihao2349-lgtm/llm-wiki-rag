@@ -5,6 +5,7 @@ import com.jihao.aiwiki.service.WikiPageService;
 import com.jihao.aiwiki.vo.wiki.WikiPageDetailVO;
 import com.jihao.aiwiki.vo.wiki.WikiSearchResultVO;
 import com.jihao.aiwiki.vo.wiki.WikiTreeNodeVO;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,10 +20,16 @@ import java.util.List;
 @RequestMapping("/api/wiki")
 public class WikiController {
 
-    private final WikiPageService wikiPageService;
+    private final ObjectProvider<WikiPageService> wikiPageServiceProvider;
 
-    public WikiController(WikiPageService wikiPageService) {
-        this.wikiPageService = wikiPageService;
+    public WikiController(ObjectProvider<WikiPageService> wikiPageServiceProvider) {
+        this.wikiPageServiceProvider = wikiPageServiceProvider;
+    }
+
+    private WikiPageService svc() {
+        return wikiPageServiceProvider.getIfAvailable(() -> {
+            throw new IllegalStateException("WikiPageService not available");
+        });
     }
 
     /**
@@ -30,7 +37,7 @@ public class WikiController {
      */
     @GetMapping("/tree")
     public ApiResponse<List<WikiTreeNodeVO>> tree(@RequestParam Long vaultId) {
-        return ApiResponse.success(wikiPageService.tree(vaultId));
+        return ApiResponse.success(svc().tree(vaultId));
     }
 
     /**
@@ -40,7 +47,7 @@ public class WikiController {
     public ApiResponse<WikiPageDetailVO> page(
             @RequestParam Long vaultId,
             @RequestParam String path) {
-        return ApiResponse.success(wikiPageService.page(vaultId, path));
+        return ApiResponse.success(svc().page(vaultId, path));
     }
 
     /**
@@ -50,6 +57,6 @@ public class WikiController {
     public ApiResponse<List<WikiSearchResultVO>> search(
             @RequestParam Long vaultId,
             @RequestParam String query) {
-        return ApiResponse.success(wikiPageService.search(vaultId, query));
+        return ApiResponse.success(svc().search(vaultId, query));
     }
 }

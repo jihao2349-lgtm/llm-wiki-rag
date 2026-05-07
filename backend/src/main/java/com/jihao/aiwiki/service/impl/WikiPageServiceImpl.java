@@ -13,6 +13,7 @@ import com.jihao.aiwiki.domain.vault.VaultPathValidator;
 import com.jihao.aiwiki.entity.VaultProjectDO;
 import com.jihao.aiwiki.entity.WikiPageDO;
 import com.jihao.aiwiki.mapper.VaultProjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import com.jihao.aiwiki.mapper.WikiPageMapper;
 import com.jihao.aiwiki.service.WikiPageService;
 import com.jihao.aiwiki.vo.wiki.WikiPageDetailVO;
@@ -36,6 +37,7 @@ import java.util.stream.Stream;
  * @date 2026/05/06
  */
 @Service
+@ConditionalOnBean(WikiPageMapper.class)
 public class WikiPageServiceImpl implements WikiPageService {
 
     private final WikiPageMapper wikiPageMapper;

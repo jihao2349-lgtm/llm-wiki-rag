@@ -31,6 +31,7 @@ import com.jihao.aiwiki.vo.chat.ChatSessionVO;
 import com.jihao.aiwiki.vo.wiki.WikiSearchResultVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -54,6 +55,7 @@ import java.util.stream.Collectors;
  * @date 2026/05/06
  */
 @Service
+@ConditionalOnBean(ChatSessionMapper.class)
 public class ChatServiceImpl implements ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatServiceImpl.class);

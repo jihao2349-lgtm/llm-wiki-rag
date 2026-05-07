@@ -18,6 +18,7 @@ import com.jihao.aiwiki.mapper.VaultProjectMapper;
 import com.jihao.aiwiki.service.WikiPageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
  * @date 2026/05/06
  */
 @Service
+@ConditionalOnBean(SourceDocumentMapper.class)
 public class IngestPipelineServiceImpl implements IngestTaskHandler {
 
     private static final Logger log = LoggerFactory.getLogger(IngestPipelineServiceImpl.class);

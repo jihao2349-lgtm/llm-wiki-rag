@@ -12,6 +12,7 @@ import com.jihao.aiwiki.mapper.VaultProjectMapper;
 import com.jihao.aiwiki.mapper.WikiPageMapper;
 import com.jihao.aiwiki.service.SearchService;
 import com.jihao.aiwiki.vo.wiki.WikiSearchResultVO;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
@@ -24,6 +25,7 @@ import java.util.List;
  * @date 2026/05/06
  */
 @Service
+@ConditionalOnBean(WikiPageMapper.class)
 public class SearchServiceImpl implements SearchService {
 
     private final WikiPageMapper wikiPageMapper;

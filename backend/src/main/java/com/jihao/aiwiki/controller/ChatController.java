@@ -8,6 +8,7 @@ import com.jihao.aiwiki.service.ChatService;
 import com.jihao.aiwiki.vo.chat.ChatMessageVO;
 import com.jihao.aiwiki.vo.chat.ChatSessionVO;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -24,10 +25,16 @@ import java.util.List;
 @RequestMapping("/api/chat")
 public class ChatController {
 
-    private final ChatService chatService;
+    private final ObjectProvider<ChatService> chatServiceProvider;
 
-    public ChatController(ChatService chatService) {
-        this.chatService = chatService;
+    public ChatController(ObjectProvider<ChatService> chatServiceProvider) {
+        this.chatServiceProvider = chatServiceProvider;
+    }
+
+    private ChatService chatService() {
+        return chatServiceProvider.getIfAvailable(() -> {
+            throw new IllegalStateException("ChatService is not available (database not configured)");
+        });
     }
 
     /**
@@ -35,7 +42,7 @@ public class ChatController {
      */
     @PostMapping("/session")
     public ApiResponse<ChatSessionVO> createSession(@Valid @RequestBody CreateSessionDTO dto) {
-        return ApiResponse.success(chatService.createSession(dto));
+        return ApiResponse.success(chatService().createSession(dto));
     }
 
     /**
@@ -43,7 +50,7 @@ public class ChatController {
      */
     @GetMapping("/sessions")
     public ApiResponse<List<ChatSessionVO>> listSessions(@RequestParam Long vaultId) {
-        return ApiResponse.success(chatService.listSessions(vaultId));
+        return ApiResponse.success(chatService().listSessions(vaultId));
     }
 
     /**
@@ -51,7 +58,7 @@ public class ChatController {
      */
     @GetMapping("/messages")
     public ApiResponse<List<ChatMessageVO>> listMessages(@RequestParam Long sessionId) {
-        return ApiResponse.success(chatService.listMessages(sessionId));
+        return ApiResponse.success(chatService().listMessages(sessionId));
     }
 
     /**
@@ -59,8 +66,8 @@ public class ChatController {
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@Valid @RequestBody ChatStreamDTO dto) {
-        SseEmitter emitter = new SseEmitter(120_000L); // 2 min timeout
-        chatService.streamChat(dto, emitter);
+        SseEmitter emitter = new SseEmitter(120_000L);
+        chatService().streamChat(dto, emitter);
         return emitter;
     }
 
@@ -71,6 +78,6 @@ public class ChatController {
     public ApiResponse<ChatMessageVO> saveAnswer(
             @RequestParam Long vaultId,
             @Valid @RequestBody SaveAnswerDTO dto) {
-        return ApiResponse.success(chatService.saveAnswer(vaultId, dto));
+        return ApiResponse.success(chatService().saveAnswer(vaultId, dto));
     }
 }

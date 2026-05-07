@@ -13,6 +13,7 @@ import com.jihao.aiwiki.mapper.SourceDocumentMapper;
 import com.jihao.aiwiki.mapper.VaultProjectMapper;
 import com.jihao.aiwiki.service.SourceDocumentService;
 import com.jihao.aiwiki.vo.source.SourceDocumentVO;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +33,7 @@ import java.util.List;
  * @date 2026/05/06
  */
 @Service
+@ConditionalOnBean(SourceDocumentMapper.class)
 public class SourceDocumentServiceImpl implements SourceDocumentService {
 
     private static final String STATUS_PARSED = "PARSED";
