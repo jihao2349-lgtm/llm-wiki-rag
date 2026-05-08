@@ -1,6 +1,5 @@
 package com.jihao.aiwiki.mapper;
 
-import com.jihao.aiwiki.domain.search.ScoredPage;
 import com.jihao.aiwiki.entity.WikiPageDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -131,16 +130,12 @@ public interface WikiPageMapper {
     void resetEmbedStatusToPending(@Param("id") Long id);
 
     /**
-     * 向量近似检索：返回与 queryVec 最相似的 topK 页面。
+     * 查询 Vault 下所有向量化成功的页面（含 embedding JSON），用于应用层余弦相似度计算。
      *
-     * @param vaultId      Vault ID
-     * @param queryVecJson 查询向量 JSON 字符串
-     * @param topK         返回数量
-     * @return 按 distance 升序排列的结果列表
+     * @param vaultId Vault ID
+     * @return 含 embedding 字段的页面列表
      */
-    List<ScoredPage> vectorSearch(@Param("vaultId") Long vaultId,
-                                  @Param("queryVecJson") String queryVecJson,
-                                  @Param("topK") int topK);
+    List<WikiPageDO> selectSuccessEmbeddings(@Param("vaultId") Long vaultId);
 
     /**
      * 查询 Vault 下有 embed_status != SUCCESS 的页面数量（用于 Dashboard 提醒）。

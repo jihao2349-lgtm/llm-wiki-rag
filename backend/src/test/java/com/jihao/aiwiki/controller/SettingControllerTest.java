@@ -1,6 +1,7 @@
 package com.jihao.aiwiki.controller;
 
 import com.jihao.aiwiki.service.SettingService;
+import com.jihao.aiwiki.domain.embedding.EmbeddingConfig;
 import com.jihao.aiwiki.dto.setting.SettingTestRequest;
 import com.jihao.aiwiki.dto.setting.SettingUpdateRequest;
 import com.jihao.aiwiki.vo.setting.SettingDetailVO;
@@ -69,6 +70,17 @@ class SettingControllerTest {
         @Override
         public SettingTestVO testLlm(SettingTestRequest request) {
             return SettingTestVO.builder().success(true).message("OK").model("gpt-test").build();
+        }
+
+        @Override
+        public EmbeddingConfig getEmbeddingConfig() {
+            return EmbeddingConfig.builder()
+                    .enabled(false)
+                    .baseUrl(EmbeddingConfig.DEFAULT_BASE_URL)
+                    .model(EmbeddingConfig.DEFAULT_MODEL)
+                    .dimension(EmbeddingConfig.DEFAULT_DIMENSION)
+                    .batchSize(EmbeddingConfig.DEFAULT_BATCH_SIZE)
+                    .build();
         }
     }
 }

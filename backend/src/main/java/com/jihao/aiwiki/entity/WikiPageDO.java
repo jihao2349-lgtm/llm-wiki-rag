@@ -46,6 +46,9 @@ public class WikiPageDO {
     /** 向量化状态：PENDING / SUCCESS / FAILED */
     private String embedStatus;
 
+    /** 页面摘要向量（JSON 浮点数组字符串），仅 selectSuccessEmbeddings 时填充 */
+    private String embedding;
+
     /** 生成向量所用模型 */
     private String embeddingModel;
 

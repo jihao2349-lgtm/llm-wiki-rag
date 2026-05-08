@@ -13,6 +13,7 @@
         <result column="related" property="related"/>
         <result column="content_hash" property="contentHash"/>
         <result column="embed_status" property="embedStatus"/>
+        <result column="embedding" property="embedding"/>
         <result column="embedding_model" property="embeddingModel"/>
         <result column="embedded_at" property="embeddedAt"/>
         <result column="embed_content_hash" property="embedContentHash"/>
@@ -124,16 +125,13 @@
         UPDATE wiki_page SET embed_status = 'PENDING', embed_error = NULL WHERE id = #{id}
     </update>
 
-    <select id="vectorSearch" resultType="com.jihao.aiwiki.domain.search.ScoredPage">
-        SELECT id AS pageId, path, title, type,
-               VECTOR_DISTANCE(embedding, #{queryVecJson}) AS vectorDistance
+    <select id="selectSuccessEmbeddings" resultMap="BaseResultMap">
+        SELECT id, vault_id, path, title, type, embed_status, embedding
         FROM wiki_page
         WHERE vault_id = #{vaultId}
           AND embed_status = 'SUCCESS'
           AND embedding IS NOT NULL
           AND deleted = 0
-        ORDER BY vectorDistance ASC
-        LIMIT #{topK}
     </select>
 
     <select id="countNonSuccessEmbeds" resultType="long">
