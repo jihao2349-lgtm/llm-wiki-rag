@@ -46,6 +46,7 @@ const navOptions: MenuOption[] = [
   { key: "tasks", label: "摄入队列", icon: renderIcon("list") },
   { key: "chat", label: "AI 对话", icon: renderIcon("message") },
   { key: "wiki", label: "Wiki 预览", icon: renderIcon("file") },
+  { key: "embedding", label: "向量管理", icon: renderIcon("database") },
 ]
 
 const developerOptions: MenuOption[] = [

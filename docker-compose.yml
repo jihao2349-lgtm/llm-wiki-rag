@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: m.daocloud.io/docker.io/mysql:8.0
+    image: m.daocloud.io/docker.io/mysql:8.4
     container_name: aiwiki-mysql
     restart: unless-stopped
     environment:

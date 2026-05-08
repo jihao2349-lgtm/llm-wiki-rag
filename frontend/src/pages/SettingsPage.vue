@@ -13,13 +13,14 @@ import {
   NTag,
 } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
-import { settingsApi } from "../api/client"
+import { embeddingApi, settingsApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import type { LlmSettings } from "../types"
 
 const loading = ref(true)
 const saving = ref(false)
 const testing = ref(false)
+const testingEmbed = ref(false)
 const errorMessage = ref("")
 const successMessage = ref("")
 
@@ -34,12 +35,18 @@ const form = reactive<LlmSettings>({
   temperature: 0.2,
   outputLanguage: "Chinese",
   embeddingEnabled: false,
+  embeddingBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  embeddingApiKey: "",
+  embeddingApiKeyMasked: "",
+  embeddingModel: "text-embedding-v3",
+  embeddingDimension: 1024,
+  embeddingBatchSize: 25,
   vectorBackend: "none",
   rerankerEnabled: false,
 })
 
 function assignSettings(settings: LlmSettings) {
-  Object.assign(form, settings, { apiKey: "" })
+  Object.assign(form, settings, { apiKey: "", embeddingApiKey: "" })
 }
 
 async function loadSettings() {
@@ -79,6 +86,30 @@ async function testLlm() {
     errorMessage.value = toErrorMessage(error)
   } finally {
     testing.value = false
+  }
+}
+
+async function testEmbedding() {
+  if (!form.embeddingBaseUrl || !form.embeddingModel) return
+  testingEmbed.value = true
+  errorMessage.value = ""
+  successMessage.value = ""
+  try {
+    const result = await embeddingApi.test({
+      baseUrl: form.embeddingBaseUrl,
+      apiKey: form.embeddingApiKey || form.embeddingApiKeyMasked || "",
+      model: form.embeddingModel,
+      dimension: form.embeddingDimension,
+    }) as Record<string, unknown>
+    if (result?.success) {
+      successMessage.value = `Embedding 连通性测试通过，向量维度: ${result.dimension}`
+    } else {
+      errorMessage.value = String(result?.message ?? "Embedding 测试失败")
+    }
+  } catch (error) {
+    errorMessage.value = toErrorMessage(error)
+  } finally {
+    testingEmbed.value = false
   }
 }
 
@@ -165,6 +196,44 @@ onMounted(loadSettings)
           </NFormItem>
         </div>
 
+        <!-- Embedding 配置区块 -->
+        <template v-if="form.embeddingEnabled">
+          <div class="embed-section-title">Embedding 配置（向量检索）</div>
+
+          <NFormItem label="Embedding Base URL">
+            <NInput
+              v-model:value="form.embeddingBaseUrl"
+              placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+            />
+          </NFormItem>
+
+          <NFormItem label="Embedding API Key">
+            <NInput
+              v-model:value="form.embeddingApiKey"
+              type="password"
+              show-password-on="click"
+              :placeholder="form.embeddingApiKeyMasked || '输入 API Key'"
+            />
+          </NFormItem>
+
+          <div class="form-grid">
+            <NFormItem label="Embedding Model">
+              <NInput v-model:value="form.embeddingModel" placeholder="text-embedding-v3" />
+            </NFormItem>
+            <NFormItem label="Dimension">
+              <NInputNumber v-model:value="form.embeddingDimension" :min="64" :max="4096" />
+            </NFormItem>
+            <NFormItem label="Batch Size">
+              <NInputNumber v-model:value="form.embeddingBatchSize" :min="1" :max="100" />
+            </NFormItem>
+          </div>
+
+          <NButton secondary :loading="testingEmbed" @click="testEmbedding" style="margin-bottom: 16px">
+            <template #icon><AppIcon name="play" /></template>
+            测试 Embedding 连通性
+          </NButton>
+        </template>
+
         <NSpace :size="8">
           <NButton type="primary" :loading="saving" @click="saveSettings">
             <template #icon>
@@ -189,3 +258,16 @@ onMounted(loadSettings)
     </div>
   </section>
 </template>
+
+<style scoped>
+.embed-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 8px 0 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+</style>

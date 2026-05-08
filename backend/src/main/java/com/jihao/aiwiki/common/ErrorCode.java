@@ -50,6 +50,9 @@ public enum ErrorCode {
     /** LLM Provider 调用失败 */
     LLM_CALL_FAILED(6001, "llm call failed"),
 
+    /** Embedding API 调用失败 */
+    EMBEDDING_FAILED(6002, "embedding failed"),
+
     /** 未预期的服务端异常 */
     INTERNAL_ERROR(500, "internal server error");
 

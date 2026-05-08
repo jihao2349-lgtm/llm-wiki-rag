@@ -43,6 +43,21 @@ public class WikiPageDO {
     /** 内容哈希 */
     private String contentHash;
 
+    /** 向量化状态：PENDING / SUCCESS / FAILED */
+    private String embedStatus;
+
+    /** 生成向量所用模型 */
+    private String embeddingModel;
+
+    /** 向量生成时间 */
+    private LocalDateTime embeddedAt;
+
+    /** 向量化时内容的 sha256 hash，用于增量判断 */
+    private String embedContentHash;
+
+    /** 向量化失败原因 */
+    private String embedError;
+
     /** 逻辑删除标志 */
     private Integer deleted;
 

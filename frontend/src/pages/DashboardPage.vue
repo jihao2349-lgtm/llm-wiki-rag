@@ -15,7 +15,7 @@ import { h, inject, onMounted, ref } from "vue"
 import AppIcon from "../components/AppIcon.vue"
 import MetricCard from "../components/MetricCard.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { dashboardApi } from "../api/client"
+import { dashboardApi, embeddingApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
 import type { IconName, IngestTask, Metric, PageKey, SourceDocument, VaultProject } from "../types"
@@ -27,6 +27,8 @@ const errorMessage = ref("")
 const metrics = ref<Metric[]>([])
 const sources = ref<SourceDocument[]>([])
 const activeTask = ref<IngestTask>()
+const pendingEmbedCount = ref(0)
+const embeddingEnabled = ref(false)
 const vaultProject = ref<VaultProject>({
   name: "AI Wiki Vault",
   path: "",
@@ -76,11 +78,18 @@ async function loadOverview() {
   loading.value = true
   errorMessage.value = ""
   try {
-    const overview = await dashboardApi.overview()
+    const [overview, embedStats] = await Promise.all([
+      dashboardApi.overview(),
+      embeddingApi.stats(1).catch(() => null),
+    ])
     vaultProject.value = overview.vaultProject
     metrics.value = overview.metrics
     sources.value = overview.recentSources
     activeTask.value = overview.activeTask
+    if (embedStats) {
+      pendingEmbedCount.value = (embedStats as any).pending ?? 0
+      embeddingEnabled.value = true
+    }
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
   } finally {
@@ -122,6 +131,16 @@ onMounted(loadOverview)
     <div v-else class="metric-grid">
       <MetricCard v-for="item in metrics" :key="item.label" :metric="item" />
     </div>
+
+    <NAlert
+      v-if="embeddingEnabled && pendingEmbedCount > 0"
+      type="warning"
+      :bordered="false"
+      style="cursor:pointer"
+      @click="navigateTo?.('embedding')"
+    >
+      {{ pendingEmbedCount }} 个 Wiki 页面待向量化，点击前往向量管理处理。
+    </NAlert>
 
     <div class="two-column">
       <NCard title="知识生产链路">
