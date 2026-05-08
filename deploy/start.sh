@@ -52,7 +52,9 @@ check_env() {
       missing=$((missing + 1))
     fi
   done
-  [[ ${missing} -gt 0 ]] && error "请先完善 .env 配置"
+  if [[ ${missing} -gt 0 ]]; then
+    error "请先完善 .env 配置"
+  fi
 }
 
 # ---------- 确保 Obsidian 目录存在 ----------
