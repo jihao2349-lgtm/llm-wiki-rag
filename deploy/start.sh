@@ -44,10 +44,10 @@ check_env() {
 
   # 检查必填项
   local missing=0
-  for key in MYSQL_ROOT_PASSWORD VITE_API_BASE_URL OBSIDIAN_VAULT_PATH; do
+  for key in MYSQL_USERNAME MYSQL_PASSWORD REDIS_PASSWORD VITE_API_BASE_URL OBSIDIAN_VAULT_PATH; do
     local val
     val=$(grep -E "^${key}=" "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]') || val=""
-    if [[ -z "${val}" || "${val}" == "请修改为强密码" ]]; then
+    if [[ -z "${val}" ]]; then
       warn "请在 .env 中设置: ${key}"
       missing=$((missing + 1))
     fi
