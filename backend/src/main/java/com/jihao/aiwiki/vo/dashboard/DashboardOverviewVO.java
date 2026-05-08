@@ -35,11 +35,59 @@ public class DashboardOverviewVO {
     /** 任务总数 */
     private long taskCount;
 
+    /** 运行中任务数 */
+    private long activeTaskCount;
+
+    /** 失败任务数 */
+    private long failedTaskCount;
+
     /** 最近一次索引时间 */
     private LocalDateTime lastIndexedAt;
 
+    /** 当前运行中任务（最多 1 条） */
+    private ActiveTaskItem activeTask;
+
+    /** 最近 5 条资料摘要 */
+    private List<RecentSourceItem> recentSources;
+
     /** 最近 5 条任务摘要 */
     private List<RecentTaskItem> recentTasks;
+
+    /**
+     * 当前运行中任务摘要。
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ActiveTaskItem {
+        private String taskId;
+        private Long sourceId;
+        private String sourceTitle;
+        private String status;
+        private String stage;
+        private Integer progress;
+        private Integer retryCount;
+        private LocalDateTime startedAt;
+        private LocalDateTime updateTime;
+    }
+
+    /**
+     * 最近资料摘要。
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecentSourceItem {
+        private Long id;
+        private String title;
+        private String type;
+        private String status;
+        private String originalPath;
+        private LocalDateTime createTime;
+        private LocalDateTime updateTime;
+    }
 
     /**
      * 最近任务摘要。

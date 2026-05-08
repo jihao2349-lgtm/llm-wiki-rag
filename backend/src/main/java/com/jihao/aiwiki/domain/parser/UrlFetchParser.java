@@ -47,6 +47,13 @@ public class UrlFetchParser implements DocumentParser {
                 .timeout(TIMEOUT_MS)
                 .maxBodySize(MAX_BODY_SIZE)
                 .followRedirects(true)
+                // 模拟真实浏览器，避免被反爬虫 403 拦截
+                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
                 .get();
         String title = doc.title();
         String body = doc.body().text();

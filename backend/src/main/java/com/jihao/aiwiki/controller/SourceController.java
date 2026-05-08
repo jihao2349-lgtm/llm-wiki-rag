@@ -1,6 +1,8 @@
 package com.jihao.aiwiki.controller;
 
 import com.jihao.aiwiki.common.ApiResponse;
+import com.jihao.aiwiki.common.BusinessException;
+import com.jihao.aiwiki.common.ErrorCode;
 import com.jihao.aiwiki.common.PageResult;
 import com.jihao.aiwiki.dto.source.SourceUrlImportDTO;
 import com.jihao.aiwiki.dto.task.IngestTaskCreateRequest;
@@ -50,11 +52,11 @@ public class SourceController {
     }
 
     /**
-     * 导入网页 URL 并抓取解析。
+     * 导入网页 URL —— 暂未开放，返回 501。
      */
     @PostMapping("/import-url")
     public ApiResponse<SourceDocumentVO> importUrl(@Valid @RequestBody SourceUrlImportDTO dto) {
-        return ApiResponse.success(svc().importUrl(dto.getVaultId(), dto.getUrl()));
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "URL 抓取功能暂未开放");
     }
 
     /**

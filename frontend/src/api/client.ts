@@ -285,8 +285,8 @@ function mapSettings(item: unknown): LlmSettings {
 function mapVault(item: unknown): VaultProject {
   const row = isRecord(item) ? item : {}
   return {
-    id: numberValue(row.id, 1),
-    name: stringValue(row.name, "AI Wiki Vault"),
+    id: numberValue(row.id ?? row.vaultId, 1),
+    name: stringValue(row.name ?? row.vaultName, "AI Wiki Vault"),
     path: stringValue(row.path),
     purpose: stringValue(row.purpose, "绑定本地 Obsidian Vault 后开始构建 AI Wiki。"),
     health: stringValue(row.status, "READY").toUpperCase() === "READY" ? "ready" : "needs-setup",
@@ -316,7 +316,7 @@ function mapMetrics(item: unknown): Metric[] {
     },
     {
       label: "运行任务",
-      value: String(numberValue(row.activeTaskCount)),
+      value: String(numberValue(row.activeTaskCount ?? row.taskCount)),
       description: "队列处理中",
       tone: "violet",
       icon: "database",
@@ -335,11 +335,13 @@ export const dashboardApi = {
   async overview(vaultId = 1): Promise<DashboardOverview> {
     const data = await request<unknown>("/api/dashboard/overview", {}, { vaultId })
     const row = isRecord(data) ? data : {}
+    // 后端返回平铺结构，recentSources 是资料摘要列表
     const sourcePage = pageRecords(row.recentSources ?? row.sources, mapSourceDocument)
+    // activeTask 是后端返回的 ActiveTaskItem，字段与 IngestTaskVO 兼容
     const activeTask = row.activeTask ? mapTask(row.activeTask) : undefined
 
     return {
-      vaultProject: mapVault(row.vaultProject ?? row.vault),
+      vaultProject: mapVault(row),   // 响应是平铺的，直接传 row
       metrics: mapMetrics(row),
       recentSources: sourcePage.records,
       activeTask,
@@ -399,8 +401,17 @@ export const taskApi = {
   },
   stream(onTask: (task: IngestTask) => void, onError: () => void, vaultId = 1) {
     const events = new EventSource(buildUrl("/api/tasks/stream", { vaultId }))
-    events.onmessage = (event) => onTask(mapTask(JSON.parse(event.data) as unknown))
-    events.addEventListener("progress", (event) => onTask(mapTask(JSON.parse(event.data) as unknown)))
+    // 后端 SSE 数据结构：{ type: "PROGRESS"|"SNAPSHOT"|"DONE"|"ERROR", task: IngestTaskVO }
+    // 必须先解包 task 字段再 mapTask，否则会产生 taskId="" 的幽灵任务
+    const handle = (event: MessageEvent) => {
+      const parsed = JSON.parse(event.data as string) as unknown
+      const taskData = isRecord(parsed) && parsed.task ? parsed.task : parsed
+      onTask(mapTask(taskData))
+    }
+    // 监听后端所有命名事件类型（onmessage 只处理无类型的 message 事件，不适用）
+    for (const name of ["progress", "snapshot", "done", "error"]) {
+      events.addEventListener(name, handle)
+    }
     events.onerror = () => onError()
     return () => events.close()
   },

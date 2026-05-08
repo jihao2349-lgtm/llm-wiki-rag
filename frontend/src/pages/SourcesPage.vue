@@ -3,12 +3,7 @@ import {
   NAlert,
   NButton,
   NDataTable,
-  NDivider,
   NEmpty,
-  NForm,
-  NFormItem,
-  NInput,
-  NInputGroup,
   NSpace,
   NSpin,
   NUpload,
@@ -24,9 +19,10 @@ import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
 import type { IconName, SourceDocument, SourcePreview } from "../types"
 
-const urlInput = ref("")
 const loading = ref(true)
-const actionLoading = ref(false)
+const uploadLoading = ref(false)
+const ingestLoadingId = ref("")   // 正在摄入的 sourceId
+const parseLoading = ref(false)
 const errorMessage = ref("")
 const actionMessage = ref("")
 const sources = ref<SourceDocument[]>([])
@@ -84,7 +80,13 @@ const sourceColumns: DataTableColumns<SourceDocument> = [
     render(row) {
       return h(
         NButton,
-        { size: "small", secondary: true, onClick: () => ingestSource(row) },
+        {
+            size: "small",
+            secondary: true,
+            loading: ingestLoadingId.value === row.id,
+            disabled: !!ingestLoadingId.value,
+            onClick: () => ingestSource(row),
+          },
         {
           icon: () => h(AppIcon, { name: "play" }),
           default: () => "摄入",
@@ -124,29 +126,13 @@ async function loadPreview(source: SourceDocument) {
   }
 }
 
-async function importUrl() {
-  if (!urlInput.value) return
-  actionLoading.value = true
-  actionMessage.value = ""
-  errorMessage.value = ""
-  try {
-    await sourceApi.importUrl(urlInput.value)
-    actionMessage.value = "URL 已提交导入"
-    await loadSources()
-  } catch (error) {
-    errorMessage.value = toErrorMessage(error)
-  } finally {
-    actionLoading.value = false
-  }
-}
-
 async function uploadSource(options: UploadCustomRequestOptions) {
   const file = options.file.file
   if (!file) {
     options.onError()
     return
   }
-
+  uploadLoading.value = true
   try {
     await sourceApi.upload(file)
     options.onFinish()
@@ -154,27 +140,31 @@ async function uploadSource(options: UploadCustomRequestOptions) {
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
     options.onError()
+  } finally {
+    uploadLoading.value = false
   }
 }
 
 async function ingestSource(source: SourceDocument) {
-  actionLoading.value = true
+  ingestLoadingId.value = source.id
   actionMessage.value = ""
   errorMessage.value = ""
   try {
     await sourceApi.ingest(source.id)
-    actionMessage.value = `${source.title} 已加入摄入队列`
-    await loadSources()
+    // 只更新该条资料的状态，不重新加载整个列表（避免布局抖动）
+    const idx = sources.value.findIndex((s) => s.id === source.id)
+    if (idx >= 0) sources.value[idx] = { ...sources.value[idx], status: "解析中" }
+    actionMessage.value = `「${source.title}」已加入摄入队列，请前往摄入队列查看进度`
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
   } finally {
-    actionLoading.value = false
+    ingestLoadingId.value = ""
   }
 }
 
 async function parseSource() {
   if (!selectedSource.value) return
-  actionLoading.value = true
+  parseLoading.value = true
   errorMessage.value = ""
   try {
     await sourceApi.parse(selectedSource.value.id)
@@ -183,7 +173,7 @@ async function parseSource() {
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
   } finally {
-    actionLoading.value = false
+    parseLoading.value = false
   }
 }
 
@@ -191,14 +181,15 @@ onMounted(loadSources)
 </script>
 
 <template>
-  <section class="page-grid sources-grid">
-    <NAlert v-if="errorMessage" type="error" :bordered="false">
-      {{ errorMessage }}
-    </NAlert>
-    <NAlert v-else-if="actionMessage" type="success" :bordered="false">
-      {{ actionMessage }}
-    </NAlert>
+  <!-- Alert 放在 grid 外，避免作为 grid 子元素撑乱布局 -->
+  <NAlert v-if="errorMessage" type="error" :bordered="false" style="margin-bottom: 12px">
+    {{ errorMessage }}
+  </NAlert>
+  <NAlert v-else-if="actionMessage" type="success" :bordered="false" style="margin-bottom: 12px">
+    {{ actionMessage }}
+  </NAlert>
 
+  <section class="page-grid sources-grid">
     <div class="import-panel">
       <div class="panel-block">
         <h2>资料导入</h2>
@@ -215,21 +206,7 @@ onMounted(loadSources)
         </NUploadDragger>
       </NUpload>
 
-      <NDivider />
-
-      <NForm label-placement="top">
-        <NFormItem label="网页 URL">
-          <NInputGroup>
-            <NInput v-model:value="urlInput" placeholder="https://..." />
-            <NButton type="primary" :loading="actionLoading" @click="importUrl">
-              <template #icon>
-                <AppIcon name="link" />
-              </template>
-              抓取
-            </NButton>
-          </NInputGroup>
-        </NFormItem>
-      </NForm>
+      <!-- URL 抓取功能暂未开放，已隐藏 -->
     </div>
 
     <div class="source-table-panel">
@@ -277,13 +254,18 @@ onMounted(loadSources)
         <h3>解析结果片段</h3>
         <p>{{ selectedPreview?.content || "暂无解析预览" }}</p>
         <NSpace :size="8">
-          <NButton secondary :loading="actionLoading" @click="parseSource">
+          <NButton secondary :loading="parseLoading" @click="parseSource">
             <template #icon>
               <AppIcon name="file" />
             </template>
             重新解析
           </NButton>
-          <NButton type="primary" :loading="actionLoading" @click="ingestSource(selectedSource)">
+          <NButton
+            type="primary"
+            :loading="ingestLoadingId === selectedSource.id"
+            :disabled="!!ingestLoadingId"
+            @click="ingestSource(selectedSource)"
+          >
             <template #icon>
               <AppIcon name="spark" />
             </template>
@@ -297,3 +279,4 @@ onMounted(loadSources)
     </div>
   </section>
 </template>
+
