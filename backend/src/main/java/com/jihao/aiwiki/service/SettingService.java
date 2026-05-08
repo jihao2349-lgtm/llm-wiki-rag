@@ -1,5 +1,6 @@
 package com.jihao.aiwiki.service;
 
+import com.jihao.aiwiki.domain.embedding.EmbeddingConfig;
 import com.jihao.aiwiki.dto.setting.SettingTestRequest;
 import com.jihao.aiwiki.dto.setting.SettingUpdateRequest;
 import com.jihao.aiwiki.vo.setting.SettingDetailVO;
@@ -35,4 +36,11 @@ public interface SettingService {
      * @return 连通性测试结果
      */
     SettingTestVO testLlm(SettingTestRequest request);
+
+    /**
+     * 读取 Embedding 配置（全局，非 per-vault）。
+     *
+     * @return EmbeddingConfig
+     */
+    EmbeddingConfig getEmbeddingConfig();
 }

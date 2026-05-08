@@ -9,6 +9,7 @@ import SettingsPage from "./pages/SettingsPage.vue"
 import SourcesPage from "./pages/SourcesPage.vue"
 import TasksPage from "./pages/TasksPage.vue"
 import WikiPage from "./pages/WikiPage.vue"
+import EmbeddingPage from "./pages/EmbeddingPage.vue"
 import type { PageKey } from "./types"
 
 const activePage = ref<PageKey>("dashboard")
@@ -21,6 +22,7 @@ const pageTitles: Record<PageKey, string> = {
   tasks: "摄入队列",
   chat: "AI 对话",
   wiki: "Wiki 预览",
+  embedding: "向量管理",
   apiconsole: "API Console",
   settings: "设置",
 }
@@ -31,6 +33,7 @@ const pageSubtitles: Record<PageKey, string> = {
   tasks: "AI 摄入串行执行，失败可重试，进度可追溯。",
   chat: "基于 Vault 检索答案，引用源可点击溯源。",
   wiki: "预览 wiki/ 目录下生成的 Markdown 页面。",
+  embedding: "管理 Wiki 页面向量化状态，触发批量重建。",
   apiconsole: "测试 RAG API、查看调用日志、配置 MCP Server。",
   settings: "Vault、模型、API Key、MCP 与安全配置。",
 }
@@ -106,6 +109,7 @@ const themeOverrides: GlobalThemeOverrides = {
       <TasksPage v-else-if="activePage === 'tasks'" />
       <ChatPage v-else-if="activePage === 'chat'" />
       <WikiPage v-else-if="activePage === 'wiki'" />
+      <EmbeddingPage v-else-if="activePage === 'embedding'" />
       <ApiConsolePage v-else-if="activePage === 'apiconsole'" />
       <SettingsPage v-else />
     </AppShell>

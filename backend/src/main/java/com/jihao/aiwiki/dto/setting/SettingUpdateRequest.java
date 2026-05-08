@@ -59,4 +59,29 @@ public class SettingUpdateRequest {
     /** v0.1 默认关闭 embedding */
     @Schema(description = "是否启用 embedding", example = "false")
     private Boolean embeddingEnabled;
+
+    /** Embedding API Base URL */
+    @Schema(description = "Embedding API Base URL",
+            example = "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    private String embeddingBaseUrl;
+
+    /** Embedding API Key，为空或 masked key 时保留已保存密钥 */
+    @Schema(description = "Embedding API Key")
+    private String embeddingApiKey;
+
+    /** Embedding 模型名称 */
+    @Schema(description = "Embedding 模型名称", example = "text-embedding-v3")
+    private String embeddingModel;
+
+    /** Embedding 向量维度 */
+    @Min(1)
+    @Max(4096)
+    @Schema(description = "Embedding 向量维度", example = "1024")
+    private Integer embeddingDimension;
+
+    /** Embedding 批量大小 */
+    @Min(1)
+    @Max(100)
+    @Schema(description = "Embedding 批量大小", example = "25")
+    private Integer embeddingBatchSize;
 }

@@ -49,6 +49,26 @@ public class SettingDetailVO {
     @Schema(description = "是否启用 embedding")
     private Boolean embeddingEnabled;
 
+    /** Embedding API Base URL */
+    @Schema(description = "Embedding API Base URL")
+    private String embeddingBaseUrl;
+
+    /** Embedding API Key（脱敏） */
+    @Schema(description = "Embedding API Key（脱敏）")
+    private String embeddingApiKeyMasked;
+
+    /** Embedding 模型名称 */
+    @Schema(description = "Embedding 模型名称")
+    private String embeddingModel;
+
+    /** Embedding 向量维度 */
+    @Schema(description = "Embedding 向量维度")
+    private Integer embeddingDimension;
+
+    /** Embedding 批量大小 */
+    @Schema(description = "Embedding 批量大小")
+    private Integer embeddingBatchSize;
+
     /** 是否已有可用 API Key */
     @Schema(description = "是否已有可用 API Key")
     private Boolean configured;

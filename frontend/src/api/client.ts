@@ -9,6 +9,8 @@ import type {
   ChatMessage,
   ChatReference,
   ChatSession,
+  EmbeddingProgress,
+  EmbeddingStats,
   IngestTask,
   LlmSettings,
   Metric,
@@ -284,6 +286,11 @@ function mapSettings(item: unknown): LlmSettings {
     temperature: numberValue(row.temperature, 0.2),
     outputLanguage: stringValue(row.outputLanguage, "Chinese") as LlmSettings["outputLanguage"],
     embeddingEnabled: boolValue(row.embeddingEnabled),
+    embeddingBaseUrl: stringValue(row.embeddingBaseUrl),
+    embeddingApiKeyMasked: stringValue(row.embeddingApiKeyMasked),
+    embeddingModel: stringValue(row.embeddingModel, "text-embedding-v3"),
+    embeddingDimension: numberValue(row.embeddingDimension, 1024),
+    embeddingBatchSize: numberValue(row.embeddingBatchSize, 25),
     vectorBackend: "none",
     rerankerEnabled: false,
   }
@@ -535,5 +542,58 @@ export const settingsApi = {
       method: "POST",
       body: JSON.stringify(settings),
     })
+  },
+}
+
+export const embeddingApi = {
+  async stats(vaultId = 1): Promise<EmbeddingStats> {
+    const data = await request<unknown>("/api/embedding/stats", {}, { vaultId })
+    const row = isRecord(data) ? data : {}
+    return {
+      total: numberValue(row.total),
+      success: numberValue(row.success),
+      failed: numberValue(row.failed),
+      pending: numberValue(row.pending),
+      lastEmbeddedAt: stringValue(row.lastEmbeddedAt),
+      failedPages: Array.isArray(row.failedPages)
+        ? row.failedPages.map((p: unknown) => {
+            const r = isRecord(p) ? p : {}
+            return {
+              pageId: numberValue(r.pageId),
+              path: stringValue(r.path),
+              title: stringValue(r.title),
+              error: stringValue(r.error),
+            }
+          })
+        : [],
+    }
+  },
+
+  async test(config: { baseUrl: string; apiKey: string; model: string; dimension?: number }) {
+    return request<unknown>("/api/embedding/test", {
+      method: "POST",
+      body: JSON.stringify(config),
+    })
+  },
+
+  async rebuild(vaultId: number, mode: "pending" | "failed" | "all") {
+    return request<unknown>("/api/embedding/rebuild", {
+      method: "POST",
+      body: JSON.stringify({ vaultId, mode }),
+    })
+  },
+
+  async progress(vaultId = 1): Promise<EmbeddingProgress> {
+    const data = await request<unknown>("/api/embedding/progress", {}, { vaultId })
+    const row = isRecord(data) ? data : {}
+    return {
+      processing: boolValue(row.processing),
+      current: numberValue(row.current),
+      total: numberValue(row.total),
+    }
+  },
+
+  async embedPage(pageId: number) {
+    return request<unknown>(`/api/embedding/page/${pageId}`, { method: "POST" })
   },
 }

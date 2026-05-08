@@ -1,10 +1,9 @@
 package com.jihao.aiwiki.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jihao.aiwiki.common.BusinessException;
 import com.jihao.aiwiki.common.ErrorCode;
-import com.jihao.aiwiki.domain.search.KeywordSearchService;
+import com.jihao.aiwiki.domain.search.HybridSearchService;
 import com.jihao.aiwiki.domain.search.MarkdownFrontmatterParser;
 import com.jihao.aiwiki.domain.search.ParsedFrontmatter;
 import com.jihao.aiwiki.domain.search.ScoredPage;
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -43,7 +41,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     private final VaultFileService fileService;
     private final VaultPathValidator pathValidator;
     private final MarkdownFrontmatterParser frontmatterParser;
-    private final KeywordSearchService keywordSearchService;
+    private final HybridSearchService hybridSearchService;
     private final ObjectMapper objectMapper;
 
     public WikiPageServiceImpl(WikiPageMapper wikiPageMapper,
@@ -51,14 +49,14 @@ public class WikiPageServiceImpl implements WikiPageService {
                                 VaultFileService fileService,
                                 VaultPathValidator pathValidator,
                                 MarkdownFrontmatterParser frontmatterParser,
-                                KeywordSearchService keywordSearchService,
+                                HybridSearchService hybridSearchService,
                                 ObjectMapper objectMapper) {
         this.wikiPageMapper = wikiPageMapper;
         this.vaultMapper = vaultMapper;
         this.fileService = fileService;
         this.pathValidator = pathValidator;
         this.frontmatterParser = frontmatterParser;
-        this.keywordSearchService = keywordSearchService;
+        this.hybridSearchService = hybridSearchService;
         this.objectMapper = objectMapper;
     }
 
@@ -94,17 +92,8 @@ public class WikiPageServiceImpl implements WikiPageService {
 
     @Override
     public List<WikiSearchResultVO> search(Long vaultId, String query) {
-        List<WikiPageDO> pages = wikiPageMapper.selectByVaultId(vaultId);
-        VaultProjectDO vault = requireVault(vaultId);
-        Path vaultRoot = Path.of(vault.getPath());
-
-        List<ScoredPage> candidates = pages.stream().map(p -> {
-            String body = loadBody(vaultRoot, p.getPath());
-            return new ScoredPage(p.getPath(), p.getTitle(), 0, null, body, p.getType());
-        }).toList();
-
-        List<ScoredPage> results = keywordSearchService.search(candidates, query);
-
+        requireVault(vaultId);
+        List<ScoredPage> results = hybridSearchService.search(vaultId, query, 20);
         return results.stream().map(r -> WikiSearchResultVO.builder()
                 .path(r.getPath())
                 .title(r.getTitle())
@@ -179,14 +168,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
         if (path.contains("..") || path.contains("\\") || path.contains("\0")) {
             throw new BusinessException(ErrorCode.WIKI_PATH_FORBIDDEN, "path contains illegal sequences");
-        }
-    }
-
-    private String loadBody(Path vaultRoot, String relativePath) {
-        try {
-            return fileService.readString(vaultRoot, relativePath);
-        } catch (BusinessException e) {
-            return null;
         }
     }
 

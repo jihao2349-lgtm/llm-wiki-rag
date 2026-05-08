@@ -12,13 +12,20 @@
         <result column="tags" property="tags"/>
         <result column="related" property="related"/>
         <result column="content_hash" property="contentHash"/>
+        <result column="embed_status" property="embedStatus"/>
+        <result column="embedding_model" property="embeddingModel"/>
+        <result column="embedded_at" property="embeddedAt"/>
+        <result column="embed_content_hash" property="embedContentHash"/>
+        <result column="embed_error" property="embedError"/>
         <result column="deleted" property="deleted"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, vault_id, path, title, type, tags, related, content_hash, deleted, create_time, update_time
+        id, vault_id, path, title, type, tags, related, content_hash,
+        embed_status, embedding_model, embedded_at, embed_content_hash, embed_error,
+        deleted, create_time, update_time
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
@@ -74,5 +81,71 @@
             </foreach>
         </if>
     </update>
+
+    <select id="countByEmbedStatus" resultType="long">
+        SELECT COUNT(*) FROM wiki_page
+        WHERE vault_id = #{vaultId} AND embed_status = #{embedStatus} AND deleted = 0
+    </select>
+
+    <select id="selectIdsByEmbedStatuses" resultType="long">
+        SELECT id FROM wiki_page
+        WHERE vault_id = #{vaultId} AND deleted = 0
+        AND embed_status IN
+        <foreach collection="embedStatuses" item="s" open="(" separator="," close=")">
+            #{s}
+        </foreach>
+        ORDER BY id
+    </select>
+
+    <select id="selectLastEmbeddedAt" resultType="java.time.LocalDateTime">
+        SELECT MAX(embedded_at) FROM wiki_page
+        WHERE vault_id = #{vaultId} AND embed_status = 'SUCCESS' AND deleted = 0
+    </select>
+
+    <update id="updateEmbeddingSuccess">
+        UPDATE wiki_page
+        SET embedding          = #{embeddingJson},
+            embedding_model    = #{model},
+            embed_content_hash = #{embedContentHash},
+            embedded_at        = #{embeddedAt},
+            embed_status       = 'SUCCESS',
+            embed_error        = NULL
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateEmbeddingFailed">
+        UPDATE wiki_page
+        SET embed_status = 'FAILED',
+            embed_error  = #{error}
+        WHERE id = #{id}
+    </update>
+
+    <update id="resetEmbedStatusToPending">
+        UPDATE wiki_page SET embed_status = 'PENDING', embed_error = NULL WHERE id = #{id}
+    </update>
+
+    <select id="vectorSearch" resultType="com.jihao.aiwiki.domain.search.ScoredPage">
+        SELECT id AS pageId, path, title, type,
+               VECTOR_DISTANCE(embedding, #{queryVecJson}) AS vectorDistance
+        FROM wiki_page
+        WHERE vault_id = #{vaultId}
+          AND embed_status = 'SUCCESS'
+          AND embedding IS NOT NULL
+          AND deleted = 0
+        ORDER BY vectorDistance ASC
+        LIMIT #{topK}
+    </select>
+
+    <select id="countNonSuccessEmbeds" resultType="long">
+        SELECT COUNT(*) FROM wiki_page
+        WHERE vault_id = #{vaultId} AND embed_status != 'SUCCESS' AND deleted = 0
+    </select>
+
+    <select id="selectFailedEmbeds" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM wiki_page
+        WHERE vault_id = #{vaultId} AND embed_status = 'FAILED' AND deleted = 0
+        ORDER BY path
+    </select>
 
 </mapper>

@@ -4,6 +4,7 @@ export type PageKey =
   | "tasks"
   | "chat"
   | "wiki"
+  | "embedding"
   | "apiconsole"
   | "settings"
 
@@ -148,8 +149,36 @@ export interface LlmSettings {
   temperature: number
   outputLanguage: "Chinese" | "English" | "Auto"
   embeddingEnabled: boolean
+  embeddingBaseUrl?: string
+  embeddingApiKey?: string
+  embeddingApiKeyMasked?: string
+  embeddingModel?: string
+  embeddingDimension?: number
+  embeddingBatchSize?: number
   vectorBackend: "none" | "pgvector" | "qdrant"
   rerankerEnabled: boolean
+}
+
+export interface EmbeddingFailedPage {
+  pageId: number
+  path: string
+  title: string
+  error: string
+}
+
+export interface EmbeddingStats {
+  total: number
+  success: number
+  failed: number
+  pending: number
+  lastEmbeddedAt: string
+  failedPages: EmbeddingFailedPage[]
+}
+
+export interface EmbeddingProgress {
+  processing: boolean
+  current: number
+  total: number
 }
 
 export interface ApiKey {
