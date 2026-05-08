@@ -11,6 +11,8 @@ target/
 .env
 .env.local
 .env.*.local
+# 生产环境配置跟随仓库（含密码，仓库需为私有）
+!deploy/.env
 
 # Logs
 *.log
