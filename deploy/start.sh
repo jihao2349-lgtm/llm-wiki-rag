@@ -44,10 +44,10 @@ check_env() {
 
   # 检查必填项
   local missing=0
-  for key in MYSQL_ROOT_PASSWORD OPENAI_API_KEY VITE_API_BASE_URL OBSIDIAN_VAULT_PATH; do
+  for key in MYSQL_ROOT_PASSWORD VITE_API_BASE_URL OBSIDIAN_VAULT_PATH; do
     local val
-    val=$(grep -E "^${key}=" "${ENV_FILE}" | cut -d= -f2- | tr -d '[:space:]')
-    if [[ -z "${val}" || "${val}" == "请修改为强密码" || "${val}" == sk-xxx* ]]; then
+    val=$(grep -E "^${key}=" "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]') || val=""
+    if [[ -z "${val}" || "${val}" == "请修改为强密码" ]]; then
       warn "请在 .env 中设置: ${key}"
       missing=$((missing + 1))
     fi
@@ -58,7 +58,7 @@ check_env() {
 # ---------- 确保 Obsidian 目录存在 ----------
 ensure_obsidian_dir() {
   local vault_path
-  vault_path=$(grep -E "^OBSIDIAN_VAULT_PATH=" "${ENV_FILE}" | cut -d= -f2- | tr -d '[:space:]')
+  vault_path=$(grep -E "^OBSIDIAN_VAULT_PATH=" "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]') || vault_path=""
   if [[ -n "${vault_path}" && ! -d "${vault_path}" ]]; then
     info "创建 Obsidian Vault 目录: ${vault_path}"
     mkdir -p "${vault_path}"
