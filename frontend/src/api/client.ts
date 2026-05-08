@@ -1,3 +1,10 @@
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 import type {
   ChatMessage,
   ChatReference,
@@ -249,7 +256,7 @@ function mapReference(item: unknown): ChatReference {
 function mapChatMessage(item: unknown): ChatMessage {
   const row = isRecord(item) ? item : {}
   return {
-    id: String(row.id ?? row.messageId ?? crypto.randomUUID()),
+    id: String(row.id ?? row.messageId ?? generateUUID()),
     role: stringValue(row.role) === "assistant" ? "assistant" : "user",
     content: stringValue(row.content),
     references: Array.isArray(row.references) ? row.references.map(mapReference) : undefined,

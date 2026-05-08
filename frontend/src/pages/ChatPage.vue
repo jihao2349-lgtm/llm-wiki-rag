@@ -2,7 +2,7 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from "vue"
 import { NAlert, NButton, NDropdown, NEmpty, NInput, NSpace, NSpin, NTag } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
-import { chatApi } from "../api/client"
+import { chatApi, generateUUID } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import type { ChatMessage, ChatReference, ChatSession, PageKey } from "../types"
 
@@ -124,8 +124,8 @@ async function sendQuestion() {
   errorMessage.value = ""
   streaming.value = true
 
-  messages.value.push({ id: crypto.randomUUID(), role: "user", content: question })
-  messages.value.push({ id: crypto.randomUUID(), role: "assistant", content: "", references: [] })
+  messages.value.push({ id: generateUUID(), role: "user", content: question })
+  messages.value.push({ id: generateUUID(), role: "assistant", content: "", references: [] })
   // Get the reactive proxy reference AFTER push so mutations trigger Vue updates
   const assistantIdx = messages.value.length - 1
   scrollToBottom()
