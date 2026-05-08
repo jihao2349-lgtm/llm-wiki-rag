@@ -7,14 +7,14 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${AIWIKI_DATASOURCE_URL:jdbc:mysql://localhost:3306/aiwiki?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
-    username: ${AIWIKI_DATASOURCE_USERNAME:root}
-    password: ${AIWIKI_DATASOURCE_PASSWORD:}
+    username: ${AIWIKI_DATASOURCE_USERNAME:ai_admin}
+    password: ${AIWIKI_DATASOURCE_PASSWORD:ai_admin_123456}
   data:
     redis:
       host: ${AIWIKI_REDIS_HOST:localhost}
       port: ${AIWIKI_REDIS_PORT:6379}
       database: ${AIWIKI_REDIS_DATABASE:0}
-      password: ${AIWIKI_REDIS_PASSWORD:}
+      password: ${AIWIKI_REDIS_PASSWORD:redis_123456}
   flyway:
     enabled: true
     locations: classpath:db/migration
