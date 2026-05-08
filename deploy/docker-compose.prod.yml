@@ -33,6 +33,6 @@ services:
     container_name: aiwiki-frontend
     restart: unless-stopped
     ports:
-      - "4001:80"
+      - "5001:80"
     depends_on:
       - backend
