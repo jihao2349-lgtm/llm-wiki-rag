@@ -90,7 +90,7 @@ function pageRecords<T>(value: unknown, mapper: (item: unknown) => T): { records
 }
 
 function buildUrl(path: string, query?: Record<string, string | number | boolean | undefined>) {
-  const url = new URL(path, `${apiBaseUrl}/`)
+  const url = new URL(`${apiBaseUrl}${path}`)
   Object.entries(query ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== "") url.searchParams.set(key, String(value))
   })
