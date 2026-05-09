@@ -36,6 +36,19 @@ const progressTotal = ref(0)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+function startPolling() {
+  if (!pollTimer) {
+    pollTimer = setInterval(pollProgress, 2000)
+  }
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
 function embedStatusType(status: string) {
   if (status === "SUCCESS") return "success"
   if (status === "FAILED") return "error"
@@ -132,11 +145,14 @@ async function loadStats() {
 async function pollProgress() {
   try {
     const p = await embeddingApi.progress(1)
+    const wasProcessing = processing.value
     processing.value = p.processing
     progressCurrent.value = p.current
     progressTotal.value = p.total
-    if (!p.processing) {
+    if (wasProcessing && !p.processing) {
+      // Job just finished: refresh stats once then stop polling
       await loadStats()
+      stopPolling()
     }
   } catch { /* ignore poll errors */ }
 }
@@ -150,6 +166,7 @@ async function triggerRebuild(mode: "pending" | "failed" | "all") {
     if (result?.started) {
       successMessage.value = String(result.message ?? "批量向量化已启动")
       processing.value = true
+      startPolling()
     } else {
       errorMessage.value = String(result?.message ?? "启动失败")
     }
@@ -181,11 +198,18 @@ const successPercent = () =>
 
 onMounted(async () => {
   await Promise.all([loadSettings(), loadStats()])
-  pollTimer = setInterval(pollProgress, 2000)
+  // Check if a job is already running; only then start polling
+  try {
+    const p = await embeddingApi.progress(1)
+    processing.value = p.processing
+    progressCurrent.value = p.current
+    progressTotal.value = p.total
+    if (p.processing) startPolling()
+  } catch { /* ignore */ }
 })
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  stopPolling()
 })
 </script>
 

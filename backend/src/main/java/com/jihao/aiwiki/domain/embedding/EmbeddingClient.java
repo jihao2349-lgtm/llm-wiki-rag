@@ -91,12 +91,19 @@ public class EmbeddingClient {
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .build();
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    throw new EmbeddingException("embedding API returned status " + response.statusCode() + ": " + truncate(response.body(), 200));
+                int status = response.statusCode();
+                if (status >= 200 && status < 300) {
+                    return response.body();
                 }
-                return response.body();
+                EmbeddingException ex = new EmbeddingException(
+                        "embedding API returned status " + status + ": " + truncate(response.body(), 200));
+                // 4xx = client-side config error, no point retrying
+                if (status >= 400 && status < 500) {
+                    throw ex;
+                }
+                lastException = ex;
             } catch (EmbeddingException e) {
-                lastException = e;
+                throw e;
             } catch (Exception e) {
                 lastException = new EmbeddingException("embedding API call failed: " + e.getMessage(), e);
             }

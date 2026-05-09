@@ -48,7 +48,13 @@ const form = reactive<LlmSettings>({
 
 function assignSettings(settings: LlmSettings) {
   Object.assign(form, settings, { apiKey: "", embeddingApiKey: "" })
-  embeddingProvider.value = form.embeddingBaseUrl?.includes("dashscope") ? "dashscope" : "openai-compatible"
+  if (form.embeddingBaseUrl?.includes("dashscope")) {
+    embeddingProvider.value = "dashscope"
+  } else if (form.embeddingBaseUrl?.includes("volces.com") || form.embeddingBaseUrl?.includes("ark")) {
+    embeddingProvider.value = "doubao"
+  } else {
+    embeddingProvider.value = "openai-compatible"
+  }
 }
 
 function setEmbeddingProvider(value: string) {
@@ -57,6 +63,11 @@ function setEmbeddingProvider(value: string) {
     form.embeddingBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     form.embeddingModel = "text-embedding-v4"
     form.embeddingDimension = 1024
+    form.embeddingBatchSize = 10
+  } else if (value === "doubao") {
+    form.embeddingBaseUrl = "https://ark.cn-beijing.volces.com/api/v3"
+    form.embeddingModel = "doubao-embedding-text-240715"
+    form.embeddingDimension = 2048
     form.embeddingBatchSize = 10
   }
 }
@@ -222,14 +233,18 @@ onMounted(loadSettings)
               <NSelect
                 :value="embeddingProvider"
                 :options="[
-                  { label: '默认 OpenAI-compatible', value: 'dashscope' },
-                  { label: 'OpenAI-compatible', value: 'openai-compatible' },
+                  { label: 'DashScope（阿里云）', value: 'dashscope' },
+                  { label: '豆包 Embedding（火山方舟）', value: 'doubao' },
+                  { label: '自定义 OpenAI-compatible', value: 'openai-compatible' },
                 ]"
                 @update:value="setEmbeddingProvider"
               />
             </NFormItem>
             <NFormItem label="Embedding Model">
-              <NInput v-model:value="form.embeddingModel" placeholder="text-embedding-v4" />
+              <NInput
+                v-model:value="form.embeddingModel"
+                :placeholder="embeddingProvider === 'doubao' ? 'doubao-embedding-text-240715' : 'text-embedding-v4'"
+              />
             </NFormItem>
           </div>
 
