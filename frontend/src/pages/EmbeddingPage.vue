@@ -4,20 +4,24 @@ import {
   NAlert,
   NButton,
   NCard,
+  NDataTable,
   NEmpty,
   NProgress,
   NSpace,
   NSpin,
   NTag,
+  type DataTableColumns,
 } from "naive-ui"
+import { h } from "vue"
 import AppIcon from "../components/AppIcon.vue"
-import { embeddingApi } from "../api/client"
+import { embeddingApi, settingsApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
-import type { EmbeddingStats, PageKey } from "../types"
+import type { EmbeddingPageStatus, EmbeddingStats, PageKey } from "../types"
 
 const navigateTo = inject<(page: PageKey) => void>("navigateTo")
 
 const loading = ref(true)
+const embeddingEnabled = ref(false)
 const actionLoading = ref<string | null>(null)
 const errorMessage = ref("")
 const successMessage = ref("")
@@ -25,15 +29,99 @@ const stats = ref<EmbeddingStats>({
   total: 0, success: 0, failed: 0, pending: 0,
   lastEmbeddedAt: "", failedPages: [],
 })
+const pages = ref<EmbeddingPageStatus[]>([])
 const processing = ref(false)
 const progressCurrent = ref(0)
 const progressTotal = ref(0)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+function embedStatusType(status: string) {
+  if (status === "SUCCESS") return "success"
+  if (status === "FAILED") return "error"
+  return "warning"
+}
+
+function embedStatusLabel(status: string) {
+  if (status === "SUCCESS") return "已向量化"
+  if (status === "FAILED") return "失败"
+  return "待处理"
+}
+
+const pageColumns: DataTableColumns<EmbeddingPageStatus> = [
+  {
+    title: "Wiki 页面",
+    key: "title",
+    render(row) {
+      return h("div", { class: "embed-page-title" }, [
+        h("strong", row.title || row.path),
+        h("span", row.path),
+      ])
+    },
+  },
+  {
+    title: "状态",
+    key: "embedStatus",
+    width: 120,
+    render(row) {
+      return h(NTag, { type: embedStatusType(row.embedStatus), size: "small", bordered: false }, {
+        default: () => embedStatusLabel(row.embedStatus),
+      })
+    },
+  },
+  {
+    title: "模型",
+    key: "embeddingModel",
+    width: 190,
+    render(row) {
+      return row.embeddingModel || "-"
+    },
+  },
+  {
+    title: "最近向量化",
+    key: "embeddedAt",
+    width: 170,
+    render(row) {
+      return row.embeddedAt ? row.embeddedAt.slice(0, 16).replace("T", " ") : "-"
+    },
+  },
+  {
+    title: "操作",
+    key: "actions",
+    width: 150,
+    render(row) {
+      return h(NButton, {
+        size: "small",
+        secondary: true,
+        type: row.embedStatus === "SUCCESS" ? "default" : "primary",
+        loading: actionLoading.value === `page-${row.pageId}`,
+        disabled: !embeddingEnabled.value || processing.value,
+        onClick: () => retryPage(row.pageId),
+      }, {
+        icon: () => h(AppIcon, { name: row.embedStatus === "SUCCESS" ? "refresh" : "play" }),
+        default: () => row.embedStatus === "SUCCESS" ? "重新向量化" : "向量化",
+      })
+    },
+  },
+]
+
+async function loadSettings() {
+  try {
+    const settings = await settingsApi.detail()
+    embeddingEnabled.value = settings.embeddingEnabled
+  } catch (e) {
+    errorMessage.value = toErrorMessage(e)
+  }
+}
+
 async function loadStats() {
   try {
-    stats.value = await embeddingApi.stats(1)
+    const [nextStats, nextPages] = await Promise.all([
+      embeddingApi.stats(1),
+      embeddingApi.pages(1),
+    ])
+    stats.value = nextStats
+    pages.value = nextPages
   } catch (e) {
     errorMessage.value = toErrorMessage(e)
   } finally {
@@ -77,7 +165,7 @@ async function retryPage(pageId: number) {
   try {
     await embeddingApi.embedPage(pageId)
     await loadStats()
-    successMessage.value = "重试成功"
+    successMessage.value = "页面向量化完成"
   } catch (e) {
     errorMessage.value = toErrorMessage(e)
   } finally {
@@ -92,7 +180,7 @@ const successPercent = () =>
   stats.value.total > 0 ? Math.round((stats.value.success / stats.value.total) * 100) : 0
 
 onMounted(async () => {
-  await loadStats()
+  await Promise.all([loadSettings(), loadStats()])
   pollTimer = setInterval(pollProgress, 2000)
 })
 
@@ -109,6 +197,10 @@ onUnmounted(() => {
         <!-- 错误 / 成功提示 -->
         <NAlert v-if="errorMessage" type="error" :title="errorMessage" closable @close="errorMessage = ''" />
         <NAlert v-if="successMessage" type="success" :title="successMessage" closable @close="successMessage = ''" />
+        <NAlert v-if="!loading && !embeddingEnabled" type="warning" :bordered="false">
+          向量搜索尚未启用。请先到设置页打开 embedding 并保存向量化模型配置，之后才能执行批量或单页向量化。
+          <NButton text type="primary" @click="navigateTo?.('settings')">前往设置</NButton>
+        </NAlert>
 
         <!-- 状态统计卡 -->
         <NCard title="状态统计">
@@ -158,7 +250,7 @@ onUnmounted(() => {
             <NButton
               type="primary"
               :loading="actionLoading === 'pending'"
-              :disabled="processing || stats.pending === 0"
+              :disabled="!embeddingEnabled || processing || stats.pending === 0"
               @click="triggerRebuild('pending')"
             >
               <template #icon><AppIcon name="play" /></template>
@@ -167,7 +259,7 @@ onUnmounted(() => {
             <NButton
               type="warning"
               :loading="actionLoading === 'failed'"
-              :disabled="processing || stats.failed === 0"
+              :disabled="!embeddingEnabled || processing || stats.failed === 0"
               @click="triggerRebuild('failed')"
             >
               <template #icon><AppIcon name="refresh" /></template>
@@ -177,7 +269,7 @@ onUnmounted(() => {
               type="error"
               secondary
               :loading="actionLoading === 'all'"
-              :disabled="processing || stats.total === 0"
+              :disabled="!embeddingEnabled || processing || stats.total === 0"
               @click="triggerRebuild('all')"
             >
               <template #icon><AppIcon name="refresh" /></template>
@@ -185,6 +277,21 @@ onUnmounted(() => {
             </NButton>
           </NSpace>
           <p class="tip">⚠ 全部重新向量化会消耗 API 配额，请谨慎操作。</p>
+        </NCard>
+
+        <NCard title="单个文件向量化">
+          <template #header-extra>
+            <NButton tertiary :loading="loading" @click="loadStats">
+              <template #icon><AppIcon name="refresh" /></template>
+              刷新
+            </NButton>
+          </template>
+          <NDataTable
+            :columns="pageColumns"
+            :data="pages"
+            :bordered="false"
+            :pagination="{ pageSize: 8 }"
+          />
         </NCard>
 
         <!-- 失败列表 -->
@@ -252,6 +359,25 @@ onUnmounted(() => {
 .progress-label { font-size: 12px; color: #94a3b8; white-space: nowrap; }
 
 .tip { font-size: 12px; color: #94a3b8; margin-top: 12px; }
+
+.embed-page-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.embed-page-title strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.embed-page-title span {
+  font-size: 12px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
 
 .failed-item {
   padding: 12px;

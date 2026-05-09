@@ -7,6 +7,7 @@ import com.jihao.aiwiki.vo.wiki.WikiPageDetailVO;
 import com.jihao.aiwiki.vo.wiki.WikiSearchResultVO;
 import com.jihao.aiwiki.vo.wiki.WikiTreeNodeVO;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -65,7 +66,9 @@ public class WikiController {
     @GetMapping("/search")
     public ApiResponse<List<WikiSearchResultVO>> search(
             @RequestParam Long vaultId,
-            @RequestParam String query) {
-        return ApiResponse.success(svc().search(vaultId, query));
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String keyword) {
+        String resolvedQuery = StringUtils.hasText(query) ? query : keyword;
+        return ApiResponse.success(svc().search(vaultId, resolvedQuery));
     }
 }

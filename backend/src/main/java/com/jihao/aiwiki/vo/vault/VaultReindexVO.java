@@ -5,14 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * Vault 重建索引占位结果。
+ * Vault 重建索引结果。
  *
  * @author jihao
  * @date 2026/05/06
  */
 @Data
 @Builder
-@Schema(description = "Vault 重建索引占位结果")
+@Schema(description = "Vault 重建索引结果")
 public class VaultReindexVO {
 
     /** Vault ID */

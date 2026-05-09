@@ -77,7 +77,9 @@ public class HybridSearchService {
         try {
             float[] queryVec = embeddingService.embedQuery(query, vaultId);
             List<ScoredPage> vectorResults = vectorSearchService.search(vaultId, queryVec, CANDIDATE_SIZE);
-            return rrfFusion(vectorResults, keywordResults, topK);
+            List<ScoredPage> fusedResults = rrfFusion(vectorResults, keywordResults, topK);
+            hydrateBodies(vaultId, fusedResults);
+            return fusedResults;
         } catch (EmbeddingException e) {
             log.warn("vector search failed, falling back to keyword: {}", e.getMessage());
             return keywordResults.stream().limit(topK).toList();
@@ -114,7 +116,23 @@ public class HybridSearchService {
             ScoredPage page = results.get(i);
             String path = page.getPath();
             scores.merge(path, 1.0 / (RRF_K + i + 1), Double::sum);
-            pageByPath.putIfAbsent(path, page);
+            ScoredPage existing = pageByPath.get(path);
+            if (existing == null || (existing.getBody() == null && page.getBody() != null)) {
+                pageByPath.put(path, page);
+            }
+        }
+    }
+
+    private void hydrateBodies(Long vaultId, List<ScoredPage> pages) {
+        Path vaultRoot = resolveVaultRoot(vaultId);
+        for (ScoredPage page : pages) {
+            if (!StringUtils.hasText(page.getBody())) {
+                page.setBody(loadBody(vaultRoot, page.getPath()));
+            }
+            if (!StringUtils.hasText(page.getSnippet()) && StringUtils.hasText(page.getBody())) {
+                String body = page.getBody();
+                page.setSnippet(body.length() > 200 ? body.substring(0, 200) + "…" : body);
+            }
         }
     }
 

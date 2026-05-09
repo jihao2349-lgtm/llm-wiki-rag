@@ -9,9 +9,11 @@ import com.jihao.aiwiki.dto.vault.VaultReindexDTO;
 import com.jihao.aiwiki.entity.VaultProjectDO;
 import com.jihao.aiwiki.mapper.VaultProjectMapper;
 import com.jihao.aiwiki.service.VaultService;
+import com.jihao.aiwiki.service.WikiPageService;
 import com.jihao.aiwiki.vo.vault.VaultDetailVO;
 import com.jihao.aiwiki.vo.vault.VaultReindexVO;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,20 +38,26 @@ public class VaultServiceImpl implements VaultService {
     /** Vault 目录初始化器 */
     private final VaultDirectoryInitializer directoryInitializer;
 
+    /** Wiki 页面索引服务 */
+    private final WikiPageService wikiPageService;
+
     /**
      * 创建 Vault 服务。
      *
      * @param vaultProjectMapper Vault 项目数据库访问
      * @param pathValidator Vault 路径校验器
      * @param directoryInitializer Vault 目录初始化器
+     * @param wikiPageService Wiki 页面索引服务
      */
     public VaultServiceImpl(
             VaultProjectMapper vaultProjectMapper,
             VaultPathValidator pathValidator,
-            VaultDirectoryInitializer directoryInitializer) {
+            VaultDirectoryInitializer directoryInitializer,
+            WikiPageService wikiPageService) {
         this.vaultProjectMapper = vaultProjectMapper;
         this.pathValidator = pathValidator;
         this.directoryInitializer = directoryInitializer;
+        this.wikiPageService = wikiPageService;
     }
 
     @Override
@@ -88,12 +96,15 @@ public class VaultServiceImpl implements VaultService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public VaultReindexVO reindex(VaultReindexDTO reindexDTO) {
         VaultDetailVO detail = getDetail(reindexDTO.getVaultId());
+        int indexedCount = wikiPageService.reindex(detail.getId(), detail.getPath());
+        vaultProjectMapper.updateLastIndexedAt(detail.getId(), LocalDateTime.now());
         return VaultReindexVO.builder()
                 .vaultId(detail.getId())
-                .status("ACCEPTED")
-                .message("reindex placeholder accepted; wiki index rebuild is owned by T5")
+                .status("DONE")
+                .message("reindex completed, indexed " + indexedCount + " wiki pages")
                 .build();
     }
 

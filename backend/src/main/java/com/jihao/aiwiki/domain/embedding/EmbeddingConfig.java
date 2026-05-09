@@ -24,7 +24,7 @@ public class EmbeddingConfig {
     public static final String DEFAULT_BASE_URL =
             "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
-    public static final String DEFAULT_MODEL = "text-embedding-v3";
+    public static final String DEFAULT_MODEL = "text-embedding-v4";
     public static final int DEFAULT_DIMENSION = 1024;
-    public static final int DEFAULT_BATCH_SIZE = 25;
+    public static final int DEFAULT_BATCH_SIZE = 10;
 }

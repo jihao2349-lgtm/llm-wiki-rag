@@ -21,6 +21,7 @@ const loading = ref(true)
 const saving = ref(false)
 const testing = ref(false)
 const testingEmbed = ref(false)
+const embeddingProvider = ref("dashscope")
 const errorMessage = ref("")
 const successMessage = ref("")
 
@@ -38,15 +39,26 @@ const form = reactive<LlmSettings>({
   embeddingBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
   embeddingApiKey: "",
   embeddingApiKeyMasked: "",
-  embeddingModel: "text-embedding-v3",
+  embeddingModel: "text-embedding-v4",
   embeddingDimension: 1024,
-  embeddingBatchSize: 25,
+  embeddingBatchSize: 10,
   vectorBackend: "none",
   rerankerEnabled: false,
 })
 
 function assignSettings(settings: LlmSettings) {
   Object.assign(form, settings, { apiKey: "", embeddingApiKey: "" })
+  embeddingProvider.value = form.embeddingBaseUrl?.includes("dashscope") ? "dashscope" : "openai-compatible"
+}
+
+function setEmbeddingProvider(value: string) {
+  embeddingProvider.value = value
+  if (value === "dashscope") {
+    form.embeddingBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    form.embeddingModel = "text-embedding-v4"
+    form.embeddingDimension = 1024
+    form.embeddingBatchSize = 10
+  }
 }
 
 async function loadSettings() {
@@ -97,7 +109,7 @@ async function testEmbedding() {
   try {
     const result = await embeddingApi.test({
       baseUrl: form.embeddingBaseUrl,
-      apiKey: form.embeddingApiKey || form.embeddingApiKeyMasked || "",
+      apiKey: form.embeddingApiKey || "",
       model: form.embeddingModel,
       dimension: form.embeddingDimension,
     }) as Record<string, unknown>
@@ -189,16 +201,37 @@ onMounted(loadSettings)
             <div class="settings-row" style="width: 100%">
               <div>
                 <strong>启用 embedding</strong>
-                <span>v0.1 默认关闭，开启后由后端配置决定是否生效。</span>
+                <span>开启后使用下方向量模型配置进行语义检索。</span>
               </div>
               <NSwitch v-model:value="form.embeddingEnabled" />
             </div>
           </NFormItem>
         </div>
 
-        <!-- Embedding 配置区块 -->
-        <template v-if="form.embeddingEnabled">
-          <div class="embed-section-title">Embedding 配置（向量检索）</div>
+        <div class="embed-section">
+          <div class="embed-section__header">
+            <div>
+              <h3>向量化模型配置</h3>
+              <p>配置兼容 OpenAI /v1/embeddings 的向量化服务。</p>
+            </div>
+            <NTag :bordered="false" type="success" size="small">Embedding</NTag>
+          </div>
+
+          <div class="form-grid">
+            <NFormItem label="Embedding Provider">
+              <NSelect
+                :value="embeddingProvider"
+                :options="[
+                  { label: '默认 OpenAI-compatible', value: 'dashscope' },
+                  { label: 'OpenAI-compatible', value: 'openai-compatible' },
+                ]"
+                @update:value="setEmbeddingProvider"
+              />
+            </NFormItem>
+            <NFormItem label="Embedding Model">
+              <NInput v-model:value="form.embeddingModel" placeholder="text-embedding-v4" />
+            </NFormItem>
+          </div>
 
           <NFormItem label="Embedding Base URL">
             <NInput
@@ -212,27 +245,24 @@ onMounted(loadSettings)
               v-model:value="form.embeddingApiKey"
               type="password"
               show-password-on="click"
-              :placeholder="form.embeddingApiKeyMasked || '输入 API Key'"
+              :placeholder="form.embeddingApiKeyMasked || '输入 Embedding API Key'"
             />
           </NFormItem>
 
           <div class="form-grid">
-            <NFormItem label="Embedding Model">
-              <NInput v-model:value="form.embeddingModel" placeholder="text-embedding-v3" />
-            </NFormItem>
-            <NFormItem label="Dimension">
+            <NFormItem label="Embedding Dimension">
               <NInputNumber v-model:value="form.embeddingDimension" :min="64" :max="4096" />
             </NFormItem>
-            <NFormItem label="Batch Size">
+            <NFormItem label="Embedding Batch Size">
               <NInputNumber v-model:value="form.embeddingBatchSize" :min="1" :max="100" />
             </NFormItem>
           </div>
 
           <NButton secondary :loading="testingEmbed" @click="testEmbedding" style="margin-bottom: 16px">
             <template #icon><AppIcon name="play" /></template>
-            测试 Embedding 连通性
+            测试向量连接
           </NButton>
-        </template>
+        </div>
 
         <NSpace :size="8">
           <NButton type="primary" :loading="saving" @click="saveSettings">
@@ -260,14 +290,30 @@ onMounted(loadSettings)
 </template>
 
 <style scoped>
-.embed-section-title {
+.embed-section {
+  margin: 6px 0 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.embed-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.embed-section__header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.embed-section__header p {
+  margin: 6px 0 0;
   font-size: 13px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 8px 0 12px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  color: #64748b;
 }
 </style>

@@ -10,6 +10,7 @@ import type {
   ChatReference,
   ChatSession,
   EmbeddingProgress,
+  EmbeddingPageStatus,
   EmbeddingStats,
   IngestTask,
   LlmSettings,
@@ -288,9 +289,9 @@ function mapSettings(item: unknown): LlmSettings {
     embeddingEnabled: boolValue(row.embeddingEnabled),
     embeddingBaseUrl: stringValue(row.embeddingBaseUrl),
     embeddingApiKeyMasked: stringValue(row.embeddingApiKeyMasked),
-    embeddingModel: stringValue(row.embeddingModel, "text-embedding-v3"),
+    embeddingModel: stringValue(row.embeddingModel, "text-embedding-v4"),
     embeddingDimension: numberValue(row.embeddingDimension, 1024),
-    embeddingBatchSize: numberValue(row.embeddingBatchSize, 25),
+    embeddingBatchSize: numberValue(row.embeddingBatchSize, 10),
     vectorBackend: "none",
     rerankerEnabled: false,
   }
@@ -443,7 +444,7 @@ export const wikiApi = {
     return mapWikiPage(await request<unknown>("/api/wiki/page", {}, { vaultId, path }))
   },
   async search(keyword: string, vaultId = 1): Promise<WikiPage[]> {
-    const data = await request<unknown>("/api/wiki/search", {}, { vaultId, keyword })
+    const data = await request<unknown>("/api/wiki/search", {}, { vaultId, query: keyword })
     return pageRecords(data, mapWikiPage).records
   },
   open(path: string, vaultId = 1) {
@@ -475,10 +476,14 @@ export const chatApi = {
     messageId: string
     targetType: "synthesis" | "question"
   }) {
+    const folder = payload.targetType === "synthesis" ? "wiki/synthesis" : "wiki/questions"
+    const safeId = payload.messageId.replace(/[^a-zA-Z0-9_-]/g, "-")
+    const targetPath = `${folder}/${new Date().toISOString().slice(0, 10)}-${safeId}.md`
+
     return request<unknown>("/api/chat/save-answer", {
       method: "POST",
-      body: JSON.stringify(payload),
-    })
+      body: JSON.stringify({ messageId: Number(payload.messageId), targetPath }),
+    }, { vaultId: payload.vaultId ?? 1 })
   },
   async stream(
     payload: { vaultId?: number; sessionId: string; question: string; maxReferences: number },
@@ -574,6 +579,25 @@ export const embeddingApi = {
       method: "POST",
       body: JSON.stringify(config),
     })
+  },
+
+  async pages(vaultId = 1): Promise<EmbeddingPageStatus[]> {
+    const data = await request<unknown>("/api/embedding/pages", {}, { vaultId })
+    return Array.isArray(data)
+      ? data.map((item: unknown) => {
+          const row = isRecord(item) ? item : {}
+          return {
+            pageId: numberValue(row.pageId),
+            path: stringValue(row.path),
+            title: stringValue(row.title),
+            type: stringValue(row.type),
+            embedStatus: stringValue(row.embedStatus, "PENDING"),
+            embeddingModel: stringValue(row.embeddingModel),
+            embeddedAt: stringValue(row.embeddedAt),
+            error: stringValue(row.error),
+          }
+        })
+      : []
   },
 
   async rebuild(vaultId: number, mode: "pending" | "failed" | "all") {

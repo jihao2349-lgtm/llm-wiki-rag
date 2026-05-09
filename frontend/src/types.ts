@@ -166,6 +166,17 @@ export interface EmbeddingFailedPage {
   error: string
 }
 
+export interface EmbeddingPageStatus {
+  pageId: number
+  path: string
+  title: string
+  type: string
+  embedStatus: "PENDING" | "SUCCESS" | "FAILED" | string
+  embeddingModel: string
+  embeddedAt: string
+  error: string
+}
+
 export interface EmbeddingStats {
   total: number
   success: number

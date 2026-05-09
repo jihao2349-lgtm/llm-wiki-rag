@@ -23,7 +23,7 @@ public class EmbeddingTestRequest {
     private String apiKey;
 
     @NotBlank
-    @Schema(description = "模型名称", example = "text-embedding-v3")
+    @Schema(description = "模型名称", example = "text-embedding-v4")
     private String model;
 
     @Schema(description = "向量维度", example = "1024")

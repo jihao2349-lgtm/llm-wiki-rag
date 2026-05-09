@@ -45,6 +45,7 @@ public interface WikiPageService {
      *
      * @param vaultId   Vault ID
      * @param vaultPath Vault 根目录绝对路径
+     * @return 当前索引的 Wiki 页面数量
      */
-    void reindex(Long vaultId, String vaultPath);
+    int reindex(Long vaultId, String vaultPath);
 }

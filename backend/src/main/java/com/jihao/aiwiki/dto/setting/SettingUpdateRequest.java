@@ -70,7 +70,7 @@ public class SettingUpdateRequest {
     private String embeddingApiKey;
 
     /** Embedding 模型名称 */
-    @Schema(description = "Embedding 模型名称", example = "text-embedding-v3")
+    @Schema(description = "Embedding 模型名称", example = "text-embedding-v4")
     private String embeddingModel;
 
     /** Embedding 向量维度 */

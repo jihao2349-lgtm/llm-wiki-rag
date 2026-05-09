@@ -10,6 +10,7 @@ import com.jihao.aiwiki.mapper.WikiPageMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * 应用上下文冒烟测试。
@@ -35,6 +36,7 @@ class AiWikiApplicationTests {
     @MockBean SourceDocumentMapper sourceDocumentMapper;
     @MockBean VaultProjectMapper vaultProjectMapper;
     @MockBean WikiPageMapper wikiPageMapper;
+    @MockBean StringRedisTemplate stringRedisTemplate;
 
     /**
      * 验证基础设施关闭时 Spring 应用上下文可以加载。

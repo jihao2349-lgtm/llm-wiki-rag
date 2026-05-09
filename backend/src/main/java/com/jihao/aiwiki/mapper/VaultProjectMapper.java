@@ -8,6 +8,8 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
+
 /**
  * Vault 项目数据库访问。
  *
@@ -83,4 +85,18 @@ public interface VaultProjectMapper {
             WHERE id = #{id} AND deleted = 0
             """)
     int updateBinding(VaultProjectDO vaultProject);
+
+    /**
+     * 更新 Vault 最近索引时间。
+     *
+     * @param id            Vault ID
+     * @param lastIndexedAt 最近索引时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE vault_project
+            SET last_indexed_at = #{lastIndexedAt}
+            WHERE id = #{id} AND deleted = 0
+            """)
+    int updateLastIndexedAt(@Param("id") Long id, @Param("lastIndexedAt") LocalDateTime lastIndexedAt);
 }

@@ -30,10 +30,10 @@ public interface VaultService {
     VaultDetailVO getDetail(Long vaultId);
 
     /**
-     * 创建重建索引占位结果。
+     * 重建 Vault 的 Wiki 索引。
      *
      * @param reindexDTO 重建请求
-     * @return 重建占位结果
+     * @return 重建结果
      */
     VaultReindexVO reindex(VaultReindexDTO reindexDTO);
 }

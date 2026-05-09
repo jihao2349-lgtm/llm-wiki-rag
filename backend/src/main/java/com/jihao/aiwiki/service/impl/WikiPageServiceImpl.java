@@ -105,11 +105,11 @@ public class WikiPageServiceImpl implements WikiPageService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void reindex(Long vaultId, String vaultPath) {
+    public int reindex(Long vaultId, String vaultPath) {
         Path vaultRoot = Path.of(vaultPath);
         Path wikiDir = vaultRoot.resolve("wiki");
         if (!Files.exists(wikiDir)) {
-            return;
+            return 0;
         }
 
         List<String> activePaths = new ArrayList<>();
@@ -150,6 +150,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         if (!activePaths.isEmpty()) {
             wikiPageMapper.markDeletedByVaultIdAndPathNotIn(vaultId, activePaths);
         }
+        return activePaths.size();
     }
 
     // ---- helpers ----

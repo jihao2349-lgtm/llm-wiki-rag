@@ -3,7 +3,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue"
 import { NAlert, NButton, NEmpty, NProgress, NSpace, NSpin, NTimeline, NTimelineItem } from "naive-ui"
 import AppIcon from "../components/AppIcon.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { embeddingApi, taskApi } from "../api/client"
+import { embeddingApi, settingsApi, taskApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import { taskStatusLabel } from "../utils/status"
 import type { IngestTask, PageKey } from "../types"
@@ -16,6 +16,8 @@ const clearLoading = ref(false)
 const errorMessage = ref("")
 const tasks = ref<IngestTask[]>([])
 const pendingEmbedCount = ref(0)
+const failedEmbedCount = ref(0)
+const embeddingEnabled = ref(false)
 const failedTasks = computed(() => tasks.value.filter((task) => task.status === "Failed").length)
 const terminatedTasks = computed(() =>
   tasks.value.filter((t) => t.status === "Cancelled" || t.status === "Failed" || t.status === "ManualCheck").length
@@ -82,7 +84,13 @@ async function clearTerminated() {
 
 onMounted(() => {
   void loadTasks()
-  embeddingApi.stats(1).then((s: any) => { pendingEmbedCount.value = s.pending ?? 0 }).catch(() => {})
+  settingsApi.detail().then((settings) => {
+    embeddingEnabled.value = settings.embeddingEnabled
+  }).catch(() => {})
+  embeddingApi.stats(1).then((s: any) => {
+    pendingEmbedCount.value = s.pending ?? 0
+    failedEmbedCount.value = s.failed ?? 0
+  }).catch(() => {})
   closeTaskStream = taskApi.stream(mergeTask, () => {
     if (!errorMessage.value) errorMessage.value = "任务进度流暂不可用"
   })
@@ -99,13 +107,22 @@ onBeforeUnmount(() => {
       {{ errorMessage }}
     </NAlert>
     <NAlert
-      v-if="pendingEmbedCount > 0"
+      v-if="!embeddingEnabled"
+      type="info"
+      :bordered="false"
+      style="cursor:pointer"
+      @click="navigateTo?.('settings')"
+    >
+      向量搜索尚未启用。完成资料摄入后，请先在设置页配置向量化模型。
+    </NAlert>
+    <NAlert
+      v-else-if="pendingEmbedCount > 0 || failedEmbedCount > 0"
       type="info"
       :bordered="false"
       style="cursor:pointer"
       @click="navigateTo?.('embedding')"
     >
-      共 {{ pendingEmbedCount }} 个 Wiki 页面未向量化，点击前往向量管理处理。
+      共 {{ pendingEmbedCount }} 个 Wiki 页面未向量化，{{ failedEmbedCount }} 个失败，点击前往向量管理处理。
     </NAlert>
 
     <div class="section-panel">

@@ -12,11 +12,13 @@ import com.jihao.aiwiki.dto.embedding.EmbeddingRebuildRequest;
 import com.jihao.aiwiki.dto.embedding.EmbeddingTestRequest;
 import com.jihao.aiwiki.entity.WikiPageDO;
 import com.jihao.aiwiki.mapper.WikiPageMapper;
+import com.jihao.aiwiki.service.SettingService;
 import com.jihao.aiwiki.vo.embedding.EmbeddingFailedPageVO;
 import com.jihao.aiwiki.vo.embedding.EmbeddingProgressVO;
 import com.jihao.aiwiki.vo.embedding.EmbeddingStatsVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * Embedding 管理 API。
@@ -42,6 +45,7 @@ public class EmbeddingController {
     private final EmbeddingService embeddingService;
     private final EmbeddingClient embeddingClient;
     private final WikiPageMapper wikiPageMapper;
+    private final SettingService settingService;
 
     /**
      * 获取 vault 向量化统计（含失败页面列表）。
@@ -70,14 +74,37 @@ public class EmbeddingController {
     }
 
     /**
+     * 获取 vault 下所有 Wiki 页面的向量化状态，用于单页向量化操作。
+     */
+    @GetMapping("/pages")
+    public ApiResponse<List<Map<String, Object>>> pages(@RequestParam Long vaultId) {
+        List<WikiPageDO> pages = wikiPageMapper.selectByVaultId(vaultId);
+        return ApiResponse.success(pages.stream()
+                .map(page -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("pageId", page.getId());
+                    item.put("path", page.getPath());
+                    item.put("title", page.getTitle());
+                    item.put("type", page.getType());
+                    item.put("embedStatus", page.getEmbedStatus());
+                    item.put("embeddingModel", page.getEmbeddingModel() == null ? "" : page.getEmbeddingModel());
+                    item.put("embeddedAt", page.getEmbeddedAt() == null ? "" : page.getEmbeddedAt().toString());
+                    item.put("error", page.getEmbedError() == null ? "" : page.getEmbedError());
+                    return item;
+                })
+                .toList());
+    }
+
+    /**
      * 测试 Embedding 配置连通性，返回实际向量维度。
      */
     @PostMapping("/test")
     public ApiResponse<Map<String, Object>> test(@RequestBody @Valid EmbeddingTestRequest request) {
+        EmbeddingConfig savedConfig = settingService.getEmbeddingConfig();
         EmbeddingConfig config = EmbeddingConfig.builder()
                 .enabled(true)
                 .baseUrl(request.getBaseUrl())
-                .apiKey(request.getApiKey())
+                .apiKey(StringUtils.hasText(request.getApiKey()) ? request.getApiKey() : savedConfig.getApiKey())
                 .model(request.getModel())
                 .dimension(request.getDimension() != null ? request.getDimension() : 1024)
                 .batchSize(1)

@@ -15,7 +15,7 @@ import { h, inject, onMounted, ref } from "vue"
 import AppIcon from "../components/AppIcon.vue"
 import MetricCard from "../components/MetricCard.vue"
 import StatusTag from "../components/StatusTag.vue"
-import { dashboardApi, embeddingApi } from "../api/client"
+import { dashboardApi, embeddingApi, settingsApi } from "../api/client"
 import { toErrorMessage } from "../utils/api-state"
 import { modalityIcon, modalityLabel } from "../utils/status"
 import type { IconName, IngestTask, Metric, PageKey, SourceDocument, VaultProject } from "../types"
@@ -28,6 +28,7 @@ const metrics = ref<Metric[]>([])
 const sources = ref<SourceDocument[]>([])
 const activeTask = ref<IngestTask>()
 const pendingEmbedCount = ref(0)
+const failedEmbedCount = ref(0)
 const embeddingEnabled = ref(false)
 const vaultProject = ref<VaultProject>({
   name: "AI Wiki Vault",
@@ -78,17 +79,19 @@ async function loadOverview() {
   loading.value = true
   errorMessage.value = ""
   try {
-    const [overview, embedStats] = await Promise.all([
+    const [overview, embedStats, settings] = await Promise.all([
       dashboardApi.overview(),
       embeddingApi.stats(1).catch(() => null),
+      settingsApi.detail().catch(() => null),
     ])
     vaultProject.value = overview.vaultProject
     metrics.value = overview.metrics
     sources.value = overview.recentSources
     activeTask.value = overview.activeTask
+    embeddingEnabled.value = Boolean(settings?.embeddingEnabled)
     if (embedStats) {
       pendingEmbedCount.value = (embedStats as any).pending ?? 0
-      embeddingEnabled.value = true
+      failedEmbedCount.value = (embedStats as any).failed ?? 0
     }
   } catch (error) {
     errorMessage.value = toErrorMessage(error)
@@ -133,13 +136,23 @@ onMounted(loadOverview)
     </div>
 
     <NAlert
-      v-if="embeddingEnabled && pendingEmbedCount > 0"
+      v-if="!embeddingEnabled"
+      type="info"
+      :bordered="false"
+      style="cursor:pointer"
+      @click="navigateTo?.('settings')"
+    >
+      向量搜索尚未启用。前往设置配置向量化模型后，可在“向量管理”执行单页或批量向量化。
+    </NAlert>
+
+    <NAlert
+      v-else-if="pendingEmbedCount > 0 || failedEmbedCount > 0"
       type="warning"
       :bordered="false"
       style="cursor:pointer"
       @click="navigateTo?.('embedding')"
     >
-      {{ pendingEmbedCount }} 个 Wiki 页面待向量化，点击前往向量管理处理。
+      {{ pendingEmbedCount }} 个 Wiki 页面待向量化，{{ failedEmbedCount }} 个失败，点击前往向量管理处理。
     </NAlert>
 
     <div class="two-column">
