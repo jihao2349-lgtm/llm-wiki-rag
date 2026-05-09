@@ -113,9 +113,6 @@ public class EmbeddingClient {
                         .timeout(Duration.ofSeconds(30))
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + config.getApiKey());
-                if (config.isVisionInputFormat()) {
-                    builder.header("x-ark-vlm1", "true");
-                }
                 HttpRequest request = builder
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .build();
