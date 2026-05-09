@@ -141,12 +141,12 @@ onMounted(loadSettings)
 
 <template>
   <section class="page-grid">
-    <NAlert v-if="errorMessage" type="error" :bordered="false">
-      {{ errorMessage }}
-    </NAlert>
-    <NAlert v-else-if="successMessage" type="success" :bordered="false">
-      {{ successMessage }}
-    </NAlert>
+    <Teleport to="body">
+      <div v-if="errorMessage || successMessage" class="toast-bar" :class="errorMessage ? 'toast-bar--error' : 'toast-bar--success'">
+        <span>{{ errorMessage || successMessage }}</span>
+        <button class="toast-bar__close" @click="errorMessage = ''; successMessage = ''">✕</button>
+      </div>
+    </Teleport>
 
     <div class="section-panel">
       <div class="section-toolbar">
@@ -303,6 +303,39 @@ onMounted(loadSettings)
     </div>
   </section>
 </template>
+
+<style scoped>
+.toast-bar {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  max-width: 520px;
+  white-space: nowrap;
+}
+.toast-bar--success { background: #10b981; color: #fff; }
+.toast-bar--error   { background: #ef4444; color: #fff; }
+.toast-bar__close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.8;
+  padding: 0;
+  line-height: 1;
+}
+.toast-bar__close:hover { opacity: 1; }
+</style>
 
 <style scoped>
 .embed-section {
