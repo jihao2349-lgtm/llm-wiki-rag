@@ -16,8 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI 兼容 Embedding HTTP 客户端。
- * POST {baseUrl}/embeddings，失败指数退避重试最多 2 次。
+ * OpenAI 兼容 Embedding HTTP 客户端，兼容火山方舟 doubao-embedding-vision 多模态接口。
  *
  * @author jihao
  * @date 2026/05/08
@@ -26,6 +25,8 @@ import java.util.Map;
 public class EmbeddingClient {
 
     private static final String EMBEDDINGS_PATH = "/embeddings";
+    // 火山方舟 doubao-embedding-vision 专用路径
+    private static final String MULTIMODAL_EMBEDDINGS_PATH = "/embeddings/multimodal";
     private static final int MAX_RETRIES = 2;
     private static final int MAX_TEXT_CHARS = 2000;
 
@@ -40,19 +41,22 @@ public class EmbeddingClient {
     }
 
     /**
-     * 批量向量化，texts.size() 须 <= config.batchSize。
-     *
-     * @param texts  待向量化文本列表
-     * @param config Embedding 配置
-     * @return 向量数组列表，与 texts 一一对应
+     * 批量向量化。vision 模型不支持批量，逐条调用后合并。
      */
     public List<float[]> embed(List<String> texts, EmbeddingConfig config) {
+        if (config.isVisionInputFormat()) {
+            List<float[]> result = new ArrayList<>(texts.size());
+            for (String text : texts) {
+                result.add(embedSingleVision(text, config));
+            }
+            return result;
+        }
         List<String> truncated = texts.stream()
                 .map(t -> t.length() > MAX_TEXT_CHARS ? t.substring(0, MAX_TEXT_CHARS) : t)
                 .toList();
-        String body = buildRequestBody(truncated, config);
+        String body = buildTextRequestBody(truncated, config);
         String responseJson = callWithRetry(config, body);
-        return parseEmbeddings(responseJson, texts.size());
+        return parseTextEmbeddings(responseJson, texts.size());
     }
 
     /**
@@ -62,7 +66,9 @@ public class EmbeddingClient {
         return embed(List.of(text), config).get(0);
     }
 
-    private String buildRequestBody(List<String> texts, EmbeddingConfig config) {
+    // ---- request builders ----
+
+    private String buildTextRequestBody(List<String> texts, EmbeddingConfig config) {
         try {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("model", config.getModel());
@@ -75,19 +81,42 @@ public class EmbeddingClient {
         }
     }
 
+    private float[] embedSingleVision(String text, EmbeddingConfig config) {
+        String truncated = text.length() > MAX_TEXT_CHARS ? text.substring(0, MAX_TEXT_CHARS) : text;
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("model", config.getModel());
+            payload.put("input", List.of(Map.of("type", "text", "text", truncated)));
+            String body = objectMapper.writeValueAsString(payload);
+            String responseJson = callWithRetry(config, body);
+            return parseVisionEmbedding(responseJson);
+        } catch (EmbeddingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new EmbeddingException("failed to build vision embedding request", e);
+        }
+    }
+
+    // ---- HTTP ----
+
     private String callWithRetry(EmbeddingConfig config, String body) {
-        String url = normalizeBaseUrl(config.getBaseUrl()) + EMBEDDINGS_PATH;
+        String path = config.isVisionInputFormat() ? MULTIMODAL_EMBEDDINGS_PATH : EMBEDDINGS_PATH;
+        String url = normalizeBaseUrl(config.getBaseUrl()) + path;
         Exception lastException = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             if (attempt > 0) {
                 sleep(Duration.ofMillis(500L * (1L << (attempt - 1))));
             }
             try {
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder builder = HttpRequest.newBuilder()
                         .uri(URI.create(url))
                         .timeout(Duration.ofSeconds(30))
                         .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer " + config.getApiKey())
+                        .header("Authorization", "Bearer " + config.getApiKey());
+                if (config.isVisionInputFormat()) {
+                    builder.header("x-ark-vlm1", "true");
+                }
+                HttpRequest request = builder
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .build();
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -97,7 +126,6 @@ public class EmbeddingClient {
                 }
                 EmbeddingException ex = new EmbeddingException(
                         "embedding API returned status " + status + ": " + truncate(response.body(), 200));
-                // 4xx = client-side config error, no point retrying
                 if (status >= 400 && status < 500) {
                     throw ex;
                 }
@@ -111,7 +139,10 @@ public class EmbeddingClient {
         throw (EmbeddingException) lastException;
     }
 
-    private List<float[]> parseEmbeddings(String json, int expectedCount) {
+    // ---- response parsers ----
+
+    /** 标准 OpenAI 格式：data[i].embedding */
+    private List<float[]> parseTextEmbeddings(String json, int expectedCount) {
         try {
             JsonNode root = objectMapper.readTree(json);
             JsonNode data = root.path("data");
@@ -120,15 +151,7 @@ public class EmbeddingClient {
             }
             List<float[]> result = new ArrayList<>(expectedCount);
             for (int i = 0; i < expectedCount; i++) {
-                JsonNode embNode = data.get(i).path("embedding");
-                if (!embNode.isArray()) {
-                    throw new EmbeddingException("embedding field is not an array at index " + i);
-                }
-                float[] vec = new float[embNode.size()];
-                for (int j = 0; j < vec.length; j++) {
-                    vec[j] = (float) embNode.get(j).asDouble();
-                }
-                result.add(vec);
+                result.add(extractVector(data.get(i).path("embedding"), i));
             }
             return result;
         } catch (EmbeddingException e) {
@@ -136,6 +159,30 @@ public class EmbeddingClient {
         } catch (Exception e) {
             throw new EmbeddingException("failed to parse embedding response", e);
         }
+    }
+
+    /** 火山方舟 multimodal 格式：data.embedding（对象，非数组） */
+    private float[] parseVisionEmbedding(String json) {
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode embNode = root.path("data").path("embedding");
+            return extractVector(embNode, 0);
+        } catch (EmbeddingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new EmbeddingException("failed to parse vision embedding response", e);
+        }
+    }
+
+    private float[] extractVector(JsonNode embNode, int index) {
+        if (!embNode.isArray()) {
+            throw new EmbeddingException("embedding field is not an array at index " + index);
+        }
+        float[] vec = new float[embNode.size()];
+        for (int j = 0; j < vec.length; j++) {
+            vec[j] = (float) embNode.get(j).asDouble();
+        }
+        return vec;
     }
 
     private String normalizeBaseUrl(String baseUrl) {

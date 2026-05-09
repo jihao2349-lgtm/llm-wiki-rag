@@ -19,6 +19,8 @@ public class EmbeddingConfig {
     private String model;
     private int dimension;
     private int batchSize;
+    /** true = 使用火山方舟 doubao-embedding-vision 多模态接口格式 */
+    private boolean visionInputFormat;
 
     /** 默认 DashScope 地址 */
     public static final String DEFAULT_BASE_URL =

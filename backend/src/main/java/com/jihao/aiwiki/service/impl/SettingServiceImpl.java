@@ -168,13 +168,19 @@ public class SettingServiceImpl implements SettingService {
         boolean enabled = Boolean.parseBoolean(settings.getOrDefault(KEY_EMBEDDING_ENABLED, "false"));
         String embCipher = settings.get(KEY_EMBEDDING_API_KEY_CIPHER);
         String embApiKey = StringUtils.hasText(embCipher) ? secretCipher.decrypt(embCipher) : null;
+        String embBaseUrl = firstText(settings.get(KEY_EMBEDDING_BASE_URL), EmbeddingConfig.DEFAULT_BASE_URL);
+        String model = firstText(settings.get(KEY_EMBEDDING_MODEL), EmbeddingConfig.DEFAULT_MODEL);
+        // 火山方舟 URL 判断是否用 vision 多模态接口（接入点 ID 不含 "vision"，用 URL 判断更可靠）
+        boolean visionFormat = (embBaseUrl != null && embBaseUrl.contains("volces.com"))
+                || (model != null && model.contains("vision"));
         return EmbeddingConfig.builder()
                 .enabled(enabled)
-                .baseUrl(firstText(settings.get(KEY_EMBEDDING_BASE_URL), EmbeddingConfig.DEFAULT_BASE_URL))
+                .baseUrl(embBaseUrl)
                 .apiKey(embApiKey != null ? embApiKey : "")
-                .model(firstText(settings.get(KEY_EMBEDDING_MODEL), EmbeddingConfig.DEFAULT_MODEL))
+                .model(model)
                 .dimension(parseInteger(settings.get(KEY_EMBEDDING_DIMENSION), EmbeddingConfig.DEFAULT_DIMENSION))
                 .batchSize(parseInteger(settings.get(KEY_EMBEDDING_BATCH_SIZE), EmbeddingConfig.DEFAULT_BATCH_SIZE))
+                .visionInputFormat(visionFormat)
                 .build();
     }
 

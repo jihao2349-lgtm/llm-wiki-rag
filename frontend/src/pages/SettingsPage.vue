@@ -66,7 +66,7 @@ function setEmbeddingProvider(value: string) {
     form.embeddingBatchSize = 10
   } else if (value === "doubao") {
     form.embeddingBaseUrl = "https://ark.cn-beijing.volces.com/api/v3"
-    form.embeddingModel = "doubao-embedding-text-240715"
+    form.embeddingModel = "ep-xxxxxxxxxx-xxxxx"
     form.embeddingDimension = 2048
     form.embeddingBatchSize = 10
   }
@@ -243,7 +243,7 @@ onMounted(loadSettings)
             <NFormItem label="Embedding Model">
               <NInput
                 v-model:value="form.embeddingModel"
-                :placeholder="embeddingProvider === 'doubao' ? 'doubao-embedding-text-240715' : 'text-embedding-v4'"
+                :placeholder="embeddingProvider === 'doubao' ? '填入接入点 ID，如 ep-20xxxxxx-xxxxx' : 'text-embedding-v4'"
               />
             </NFormItem>
           </div>
