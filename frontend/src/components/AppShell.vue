@@ -85,24 +85,26 @@ const developerOptions: MenuOption[] = [
           </div>
 
           <template v-if="!collapsed">
-            <div class="side-section">
-              <span class="side-section-label">主菜单</span>
-              <NMenu
-                v-model:value="activePageModel"
-                :options="navOptions"
-                class="side-menu"
-                :indent="14"
-              />
-            </div>
+            <div class="sider-scroll">
+              <div class="side-section">
+                <span class="side-section-label">主菜单</span>
+                <NMenu
+                  v-model:value="activePageModel"
+                  :options="navOptions"
+                  class="side-menu"
+                  :indent="14"
+                />
+              </div>
 
-            <div class="side-section">
-              <span class="side-section-label">开发者</span>
-              <NMenu
-                v-model:value="activePageModel"
-                :options="developerOptions"
-                class="side-menu"
-                :indent="14"
-              />
+              <div class="side-section">
+                <span class="side-section-label">开发者</span>
+                <NMenu
+                  v-model:value="activePageModel"
+                  :options="developerOptions"
+                  class="side-menu"
+                  :indent="14"
+                />
+              </div>
             </div>
 
             <div class="vault-summary">

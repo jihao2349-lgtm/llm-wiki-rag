@@ -98,9 +98,14 @@ button {
   display: flex;
   height: 100%;
   flex-direction: column;
-  padding-bottom: 16px;
+  overflow: hidden;
+}
+
+.sider-scroll {
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  padding-bottom: 8px;
 }
 
 .brand {
@@ -259,7 +264,8 @@ button {
 .vault-summary {
   display: grid;
   gap: 6px;
-  margin: auto 14px 8px;
+  flex-shrink: 0;
+  margin: 0 14px 16px;
   padding: 14px;
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: var(--radius-md);
