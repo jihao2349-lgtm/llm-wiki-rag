@@ -65,7 +65,7 @@ const developerOptions: MenuOption[] = [
         :collapsed-width="64"
         :collapsed="collapsed"
         collapse-mode="width"
-        :native-scrollbar="false"
+        :native-scrollbar="true"
         :show-trigger="false"
       >
         <div class="sider-inner">

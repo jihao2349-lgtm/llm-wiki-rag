@@ -96,13 +96,15 @@ button {
 
 .sider-inner {
   display: flex;
-  height: 100%;
   flex-direction: column;
+  height: 100%;
+  min-height: 100%;
   overflow: hidden;
 }
 
 .sider-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 8px;
